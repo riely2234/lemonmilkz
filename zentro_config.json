@@ -4,5 +4,12 @@
     "startup_file": "main.py",
     "auto_restart": false,
     "env": {}
+  },
+  "bot_1772342880764": {
+    "name": "testing",
+    "startup_file": "main.py",
+    "auto_restart": false,
+    "env": {},
+    "owner": "Riely"
   }
 }
