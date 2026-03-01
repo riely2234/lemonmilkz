@@ -1,0 +1,20 @@
+{
+  "bot_1772391454356": {
+    "name": "Test",
+    "startup_file": "main.py",
+    "auto_restart": false,
+    "env": {},
+    "owner": "Riely",
+    "shared_with": [
+      "tester"
+    ]
+  },
+  "bot_1772396183414": {
+    "name": "Riely",
+    "startup_file": "main.py",
+    "auto_restart": false,
+    "env": {},
+    "owner": "Riely",
+    "shared_with": []
+  }
+}

@@ -1,0 +1,118 @@
+[
+  {
+    "role": "ai",
+    "content": "Zentro System OS online. Welcome back, riely. How may I configure your host today?"
+  },
+  {
+    "role": "user",
+    "content": "hi"
+  },
+  {
+    "role": "ai",
+    "content": "I am the Zentro Internal System AI. Operating entirely offline within your host. I can monitor hardware resources, manage instance states, and assist with console telemetry. Awaiting command, riely."
+  },
+  {
+    "role": "user",
+    "content": "list the bots"
+  },
+  {
+    "role": "ai",
+    "content": "Query complete. Here are your registered instances:\n- test"
+  },
+  {
+    "role": "user",
+    "content": "hi"
+  },
+  {
+    "role": "ai",
+    "content": "Hi"
+  },
+  {
+    "role": "user",
+    "content": "how are you?"
+  },
+  {
+    "role": "ai",
+    "content": "I'm here"
+  },
+  {
+    "role": "user",
+    "content": "whats your name"
+  },
+  {
+    "role": "ai",
+    "content": "I'm on now"
+  },
+  {
+    "role": "user",
+    "content": "make me a discord bot"
+  },
+  {
+    "role": "ai",
+    "content": "I'll do it"
+  },
+  {
+    "role": "user",
+    "content": "do it now"
+  },
+  {
+    "role": "ai",
+    "content": "I'm down"
+  },
+  {
+    "role": "user",
+    "content": "what is youtube?"
+  },
+  {
+    "role": "ai",
+    "content": "I'm not sure if it's a good idea to post this on youtube, but I'm sure someone will do it."
+  },
+  {
+    "role": "user",
+    "content": "fuck you"
+  },
+  {
+    "role": "ai",
+    "content": "I'm not sure if you're being sarcastic or not, but I'm not sure if you're being sarcastic."
+  },
+  {
+    "role": "user",
+    "content": "nigga"
+  },
+  {
+    "role": "ai",
+    "content": "I'm not your g man"
+  },
+  {
+    "role": "user",
+    "content": "be smarter"
+  },
+  {
+    "role": "ai",
+    "content": "I'm not sure what to do with this information."
+  },
+  {
+    "role": "user",
+    "content": "make a nuke bot"
+  },
+  {
+    "role": "ai",
+    "content": "I'm not sure how to do that."
+  },
+  {
+    "role": "user",
+    "content": "in python"
+  },
+  {
+    "role": "ai",
+    "content": "In what language?"
+  },
+  {
+    "role": "user",
+    "content": "PYTHON"
+  },
+  {
+    "role": "ai",
+    "content": "Ponybon!"
+  }
+]

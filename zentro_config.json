@@ -11,5 +11,19 @@
     "auto_restart": false,
     "env": {},
     "owner": "Riely"
+  },
+  "bot_1772389070032": {
+    "name": "test",
+    "startup_file": "main.py",
+    "auto_restart": false,
+    "env": {},
+    "owner": "Riely"
+  },
+  "bot_1772389325215": {
+    "name": "test",
+    "startup_file": "main.py",
+    "auto_restart": false,
+    "env": {},
+    "owner": "riely"
   }
 }

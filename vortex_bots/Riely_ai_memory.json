@@ -1,0 +1,38 @@
+[
+  {
+    "role": "ai",
+    "content": "Vortex System OS online. Welcome back, Riely. My neural core is standing by."
+  },
+  {
+    "role": "user",
+    "content": "hi"
+  },
+  {
+    "role": "ai",
+    "content": "Hi"
+  },
+  {
+    "role": "user",
+    "content": "how are you"
+  },
+  {
+    "role": "ai",
+    "content": "How are you"
+  },
+  {
+    "role": "user",
+    "content": "Ehhh, could be better"
+  },
+  {
+    "role": "ai",
+    "content": "I'm not sure if this is better or worse than the last one."
+  },
+  {
+    "role": "user",
+    "content": "Who are you?"
+  },
+  {
+    "role": "ai",
+    "content": "I'm here"
+  }
+]
