@@ -1,0 +1,8 @@
+{
+  "bot_1772325282": {
+    "name": "TEst Bot",
+    "startup_file": "main.py",
+    "auto_restart": false,
+    "env": {}
+  }
+}
