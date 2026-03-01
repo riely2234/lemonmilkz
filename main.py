@@ -127,6 +127,31 @@ HTML = r"""<!DOCTYPE html>
   --display:  'Bebas Neue', sans-serif;
 }
 
+@media (max-width: 768px) {
+  body { flex-direction: column; overflow-y: auto; height: auto; }
+  .sidebar {
+    width: 100%; min-width: 100%; height: auto;
+    border-right: none; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .sidebar-content { display: none; }
+  .sidebar.open .sidebar-content { display: flex; flex-direction: column; }
+  .main { height: auto; overflow: visible; }
+  .topbar { padding: 10px 15px; font-size: 14px; flex-wrap: wrap; height: auto; }
+  .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-value { font-size: 20px; }
+  .page { padding: 15px; }
+  .tb-bot { max-width: 100%; width: 100%; margin-top: 5px; }
+  .tb-controls { width: 100%; justify-content: space-between; margin-top: 10px; flex-wrap: wrap; }
+  .mobile-menu-btn {
+    display: block !important;
+    background: none; border: 1px solid var(--line2);
+    color: var(--gold); padding: 5px 10px; border-radius: 4px;
+    font-family: var(--mono); font-size: 10px;
+  }
+}
+.mobile-menu-btn { display: none; }
+
 html, body { height: 100%; overflow: hidden; background: var(--black); }
 body { display: flex; font-family: var(--sans); color: var(--text); cursor: default; }
 
@@ -1319,11 +1344,13 @@ body::before {
     <div class="logo-lockup">
       <div class="logo-badge"><span>Z</span></div>
       <span class="logo-wordmark">ZENTROHOST</span>
+      <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open')">MENU</button>
     </div>
     <div class="logo-tagline">BOT HOSTING PANEL</div>
   </div>
 
-  <nav class="nav">
+  <div class="sidebar-content">
+    <nav class="nav">
     <div class="nav-label">Interface</div>
     <div class="nav-item active" data-page="dashboard" onclick="navTo('dashboard',this)">
       <span class="nav-glyph">◈</span> Dashboard
@@ -1362,6 +1389,7 @@ body::before {
     <span class="footer-brand">ZHOST</span>
     <span class="footer-clock" id="clock">00:00:00</span>
   </div>
+  </div>
 </aside>
 
 <!-- ═══════════════════════════════════
@@ -1375,17 +1403,18 @@ body::before {
       <span class="tb-section">ZENTROHOST</span>
       <span class="tb-slash">/</span>
       <span class="tb-page" id="tbPage">DASHBOARD</span>
-      <span class="tb-slash">·</span>
-      <span class="tb-bot" id="tbBot">— select instance —</span>
     </div>
     <div class="tb-controls">
       <div class="status-tag offline" id="statusTag">
         <div class="status-led"></div>
         <span id="statusText">OFFLINE</span>
       </div>
-      <button class="btn btn-green btn-sm" onclick="startBot()">▶ START</button>
-      <button class="btn btn-red btn-sm" onclick="stopBot()">■ STOP</button>
-      <button class="btn btn-amber btn-sm" onclick="restartBot()">↺ RESTART</button>
+      <div class="tb-bot" id="tbBot">— select instance —</div>
+      <div class="btn-row">
+        <button class="btn btn-green btn-sm" onclick="startBot()">▶ START</button>
+        <button class="btn btn-red btn-sm" onclick="stopBot()">■ STOP</button>
+        <button class="btn btn-amber btn-sm" onclick="restartBot()">↺ RESTART</button>
+      </div>
     </div>
   </div>
 
@@ -2243,3 +2272,28 @@ if __name__ == '__main__':
     print('  http://localhost:5000')
     print('━'*52 + '\n')
     socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+
+# CSS for Mobile UI (Tailwind-like or custom media queries)
+MOBILE_CSS = r"""
+@media (max-width: 768px) {
+  body { flex-direction: column; overflow-y: auto; height: auto; }
+  .sidebar {
+    width: 100%; min-width: 100%; height: auto;
+    border-right: none; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .sidebar.collapsed .nav, .sidebar.collapsed .bot-list, .sidebar.collapsed .new-bot-btn, .sidebar.collapsed .sidebar-footer {
+    display: none;
+  }
+  .main { height: auto; overflow: visible; }
+  .topbar { position: sticky; top: 0; z-index: 90; padding: 0 15px; }
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .page { padding: 15px; }
+  .panel-body { padding: 12px; }
+  .terminal { height: 300px; }
+  .tb-bot { max-width: 120px; }
+  .logo { padding: 12px 15px; display: flex; align-items: center; justify-content: space-between; }
+  .mobile-toggle { display: block !important; color: var(--gold); font-size: 20px; background: none; border: none; }
+}
+.mobile-toggle { display: none; }
+"""
