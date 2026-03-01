@@ -3,9 +3,19 @@ ZentroHost v4.0 — Industrial Luxury Edition
 Install: pip install flask flask-socketio psutil werkzeug
 Run:     python zentrohost.py
 """
-import logging, os, subprocess, sys, threading, zipfile, json, time, shutil, psutil
+import json
+import logging
+import os
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import zipfile
 from logging import Formatter, StreamHandler, getLogger
-from flask import Flask, render_template_string, request, jsonify, send_file
+
+import psutil
+from flask import Flask, jsonify, render_template_string, request, send_file
 from flask_socketio import SocketIO
 from werkzeug.utils import secure_filename
 
@@ -2242,4 +2252,4 @@ if __name__ == '__main__':
     print('  ZENTROHOST v4.0  ·  Industrial Luxury Edition')
     print('  http://localhost:5000')
     print('━'*52 + '\n')
-    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
