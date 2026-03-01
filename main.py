@@ -1,5 +1,5 @@
 """
-Vortex Hosting v11.1 — Refined Mobile UI
+Vortex Hosting v11.1 — Refined Mobile UI (Plaintext Passwords)
 Install: pip install flask flask-socketio psutil werkzeug eventlet
 Run:     python main.py
 """
@@ -27,7 +27,7 @@ from logging import Formatter, StreamHandler, getLogger
 from flask import Flask, jsonify, render_template_string, request, send_file, session
 from flask_socketio import SocketIO, join_room
 from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash, check_password_hash
+# Encryption imports removed so passwords save as decrypted text
 
 log = getLogger('vortexhost')
 log.setLevel(logging.INFO)
@@ -349,7 +349,7 @@ body::after {
    MOBILE BOTTOM APP BAR
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .mobile-bottom-nav {
-  display: none; position: fixed; bottom: 16px; left: 16px; right: 16px; height: 70px;
+  display: none; position: fixed; bottom: 16px; left: 16px; right: 16px; height: 70px; padding-bottom:env(safe-area-inset-bottom);
   background: rgba(15, 20, 30, 0.85); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
   border: 1px solid var(--line-bright); border-radius: 20px; z-index: 9000; 
   box-shadow: 0 10px 40px rgba(0,0,0,0.8), inset 0 2px 10px rgba(255,255,255,0.05);
@@ -366,8 +366,8 @@ body::after {
 
 /* The Overlay for when Sidebar (BOTS menu) opens on mobile. No blur! Just dark fade. */
 .sidebar-overlay { 
-  display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.9); 
-  z-index: 0; transition: opacity 0.0s ease; opacity: 0; cursor: pointer;
+  display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); 
+  z-index: 0; transition: opacity 0.3s ease; opacity: 0; cursor: pointer;
 }
 .sidebar-overlay.open { display: block; opacity: 1; }
 
@@ -382,6 +382,7 @@ body::after {
   box-shadow:0 10px 30px rgba(0,0,0,0.8);
 }
 .topbar-main { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.mobile-nav-toggle { display:none; } /* Only used in desktop mode or overridden in media query */
 
 .tb-breadcrumb { display:flex; align-items:center; gap:12px; min-width:0; }
 .tb-section { font-family:var(--font-mono); font-size:12px; font-weight:700; letter-spacing:3px; color:var(--text-dark); text-transform:uppercase; }
@@ -556,7 +557,7 @@ body::after {
 .drop-headline { font-family:var(--font-disp); font-size:28px; letter-spacing:4px; color:#FFF; margin-bottom:8px; text-shadow:0 0 10px rgba(0,240,255,0.3);}
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   MODALS & LOGIN
+   MODALS & LOGIN 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .modal-veil {
   display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000;
@@ -742,6 +743,7 @@ body::after {
   <main class="main">
     <div class="topbar">
       <div class="topbar-main">
+        <button class="mobile-nav-toggle" onclick="toggleSidebar()">☰</button>
         <div class="tb-breadcrumb">
           <span class="tb-section">VORTEX</span><span class="tb-slash">/</span>
           <span class="tb-page" id="tbPage">DASHBOARD</span><span class="tb-slash">·</span>
@@ -1229,6 +1231,8 @@ function dlFile(name){window.location.href=`/api/bot/${curBot}/file/${encodeURIC
 
 async function handleUpload(files) {
   if(!curBot) return;
+  document.getElementById('fileUploadInput').value='';
+  document.getElementById('folderUploadInput').value='';
   const prog=document.getElementById('uploadProgress');
   
   for(let i=0; i<files.length; i++) {
@@ -1258,10 +1262,6 @@ async function handleUpload(files) {
         toast(`Network error on ${file.name}`, 'error');
     }
   }
-  
-  // Clear file inputs so same files can be re-uploaded
-  document.getElementById('fileUploadInput').value='';
-  document.getElementById('folderUploadInput').value='';
   
   loadFiles(); 
   toast(`Upload sequence complete`, 'success');
@@ -1398,7 +1398,7 @@ def login():
     if username not in users:
         return jsonify({'error': 'User not found'}), 401
     
-    if not check_password_hash(users[username]['pwd'], password):
+    if users[username]['pwd'] != password:
         return jsonify({'error': 'Invalid password'}), 401
         
     session['username'] = username
@@ -1416,7 +1416,7 @@ def register():
     if username in users:
         return jsonify({'error': 'Username already exists'}), 400
         
-    users[username] = {'pwd': generate_password_hash(password)}
+    users[username] = {'pwd': password}
     save_users(users)
     
     session['username'] = username
