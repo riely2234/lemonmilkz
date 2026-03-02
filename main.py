@@ -1240,7 +1240,8 @@ async function handleUpload(files) {
     const fd=new FormData(); 
     fd.append('file', file);
     // Use webkitRelativePath for nested folders if available
-    fd.append('path', file.webkitRelativePath || file.name);
+    let uploadPath = file.webkitRelativePath || file.name;
+    fd.append('path', uploadPath);
     
     const wrap=document.createElement('div');
     wrap.style.cssText = "display:flex; align-items:center; gap:12px; padding:12px; background:rgba(0,0,0,0.6); border:1px solid var(--line); border-radius:6px; margin-top:12px; font-family:var(--font-mono); font-size:12px;";
@@ -1648,7 +1649,7 @@ def upload_route(bid):
     
     # Ensure the filename is safe but allow subdirectories if provided in path
     filename = os.path.basename(rel_path)
-    safe_rel_path = os.path.join(os.path.dirname(rel_path), secure_filename(filename))
+    safe_rel_path = os.path.join(os.path.dirname(rel_path), secure_filename(filename or 'file'))
     
     fp = safe_path(bid, safe_rel_path)
     if not fp: return jsonify({'error': 'invalid path mapping'}), 403
