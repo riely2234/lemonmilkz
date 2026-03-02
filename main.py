@@ -1642,11 +1642,15 @@ def upload_route(bid):
     file = request.files['file']
     rel_path = request.form.get('path')
     if not rel_path:
-        rel_path = secure_filename(file.filename or '')
+        rel_path = file.filename
         
     if not rel_path: return jsonify({'error': 'invalid filename'}), 400
     
-    fp = safe_path(bid, rel_path)
+    # Ensure the filename is safe but allow subdirectories if provided in path
+    filename = os.path.basename(rel_path)
+    safe_rel_path = os.path.join(os.path.dirname(rel_path), secure_filename(filename))
+    
+    fp = safe_path(bid, safe_rel_path)
     if not fp: return jsonify({'error': 'invalid path mapping'}), 403
     
     os.makedirs(os.path.dirname(fp), exist_ok=True)
