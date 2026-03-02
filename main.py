@@ -1718,7 +1718,7 @@ def resources():
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8080))
     print('\n' + '━' * 52)
     print(f'  VORTEX HOSTING v11.1  ·  mode={_ASYNC_MODE}  ·  port={port}')
     print('━' * 52 + '\n')
