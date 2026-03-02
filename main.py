@@ -1,5 +1,5 @@
 """
-Vortex Hosting v11.1 — Refined Mobile UI (Plaintext Passwords)
+ZentroHost v11.1 — Refined Mobile UI (Plaintext Passwords)
 Install: pip install flask flask-socketio psutil werkzeug eventlet
 Run:     python main.py
 """
@@ -29,14 +29,14 @@ from flask_socketio import SocketIO, join_room
 from werkzeug.utils import secure_filename
 # Encryption imports removed so passwords save as decrypted text
 
-log = getLogger('vortexhost')
+log = getLogger('zentrohost')
 log.setLevel(logging.INFO)
 _h = StreamHandler()
 _h.setFormatter(Formatter('%(asctime)s %(levelname)s %(message)s'))
 log.addHandler(_h)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('VORTEX_SECRET_KEY', 'vortex-luxury-stable-key-v11')
+app.secret_key = os.environ.get('ZENTRO_SECRET_KEY', 'zentro-luxury-stable-key-v11')
 
 socketio = SocketIO(
     app,
@@ -47,9 +47,9 @@ socketio = SocketIO(
 )
 
 # Databases & Directories
-BOTS_DIR = os.path.join(os.getcwd(), 'vortex_bots')
-CONFIG_FILE = os.path.join(os.getcwd(), 'vortex_config.json')
-USERS_FILE = os.path.join(os.getcwd(), 'vortex_users.json')
+BOTS_DIR = os.path.join(os.getcwd(), 'zentro_bots')
+CONFIG_FILE = os.path.join(os.getcwd(), 'zentro_config.json')
+USERS_FILE = os.path.join(os.getcwd(), 'zentro_users.json')
 os.makedirs(BOTS_DIR, exist_ok=True)
 
 _config_lock = threading.RLock()
@@ -221,13 +221,13 @@ HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>VORTEX HOSTING</title>
+<title>ZENTROHOST</title>
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@400;500;600;700&family=Fira+Code:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   RESET & VORTEX VARIABLES
+   RESET & ZENTRO VARIABLES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0; -webkit-tap-highlight-color: transparent;}
 :root {
@@ -686,7 +686,7 @@ body::after {
 
 <div id="loginOverlay">
   <div class="login-card">
-    <div class="logo-wordmark" style="font-size:48px; margin-bottom:5px; text-align:center;">VORTEX</div>
+    <div class="logo-wordmark" style="font-size:48px; margin-bottom:5px; text-align:center;">ZENTRO</div>
     <p style="font-family:var(--font-mono);color:var(--text-dark);font-size:12px;letter-spacing:6px;text-transform:uppercase; text-align:center; margin-bottom:20px;">HOSTING PLATFORM</p>
     
     <div class="login-tabs">
@@ -708,7 +708,7 @@ body::after {
     <button class="sidebar-close-btn" onclick="toggleSidebar()">✕</button>
     <div class="logo">
       <div class="logo-lockup">
-        <div class="logo-wordmark">VORTEX</div>
+        <div class="logo-wordmark">ZENTRO</div>
       </div>
       <div style="font-size:10px;color:var(--text-dark);letter-spacing:6px;font-family:var(--font-mono);text-transform:uppercase; font-weight:700;">Admin Interface</div>
     </div>
@@ -745,7 +745,7 @@ body::after {
       <div class="topbar-main">
         <button class="mobile-nav-toggle" onclick="toggleSidebar()">☰</button>
         <div class="tb-breadcrumb">
-          <span class="tb-section">VORTEX</span><span class="tb-slash">/</span>
+          <span class="tb-section">ZENTRO</span><span class="tb-slash">/</span>
           <span class="tb-page" id="tbPage">DASHBOARD</span><span class="tb-slash">·</span>
           <span class="tb-bot" id="tbBot">— SELECT INSTANCE —</span>
         </div>
@@ -1713,9 +1713,9 @@ def resources():
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
+    port = int(os.environ.get('PORT', 5000))
     print('\n' + '━' * 52)
-    print(f'  VORTEX HOSTING v11.1  ·  mode={_ASYNC_MODE}  ·  port={port}')
+    print(f'  ZENTROHOST v11.1  ·  mode={_ASYNC_MODE}  ·  port={port}')
     print('━' * 52 + '\n')
 
     if _ASYNC_MODE == 'eventlet':
