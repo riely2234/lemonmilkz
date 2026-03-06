@@ -382,7 +382,7 @@ body::after {
   box-shadow:0 10px 30px rgba(0,0,0,0.8);
 }
 .topbar-main { display: flex; align-items: center; gap: 16px; min-width: 0; }
-.mobile-nav-toggle { display:none; } /* Only used in desktop mode or overridden in media query */
+.mobile-nav-toggle { display:none; }
 
 .tb-breadcrumb { display:flex; align-items:center; gap:12px; min-width:0; }
 .tb-section { font-family:var(--font-mono); font-size:12px; font-weight:700; letter-spacing:3px; color:var(--text-dark); text-transform:uppercase; }
@@ -401,6 +401,7 @@ body::after {
 .status-led { width:8px; height:8px; border-radius:50%; }
 .status-tag.online .status-led { background:var(--green); box-shadow:0 0 12px var(--green); animation:ledBlink 1.5s ease-in-out infinite; }
 .status-tag.offline .status-led { background:var(--red); }
+@keyframes ledBlink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CYBER BUTTONS
@@ -432,7 +433,7 @@ body::after {
 .btn-ghost { background:rgba(255,255,255,0.05); color:var(--text-main); border:1px solid var(--line-bright); backdrop-filter:blur(4px);}
 .btn-ghost:hover { background:rgba(255,255,255,0.1); border-color:#FFF; transform:translateY(-2px); box-shadow:0 6px 15px rgba(0,0,0,0.4);}
 
-.btn-sm { padding:10px 16px; font-size:12px; } /* Slightly larger for touch targets */
+.btn-sm { padding:10px 16px; font-size:12px; }
 .btn-row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -535,6 +536,12 @@ body::after {
 
 .divider { font-family:var(--font-disp); font-size:18px; letter-spacing:2px; color:var(--neon-purple); border-bottom:1px solid var(--line); padding-bottom:8px; margin:30px 0 20px; text-shadow:0 0 10px rgba(176,0,255,0.4);}
 
+/* ENV rows */
+.env-row { display:grid; grid-template-columns:1fr 1.5fr auto; gap:8px; margin-bottom:10px; align-items:center; }
+.env-field { background:rgba(0,0,0,0.5); border:1px solid var(--line); border-left:3px solid var(--line-bright); padding:12px 16px; font-family:var(--font-mono); font-size:13px; color:#FFF; outline:none; width:100%; transition:border-left-color 0.15s; border-radius:4px; }
+.env-field:focus { border-left-color:var(--neon-cyan); }
+.env-field.key-field { color:var(--amber); }
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    FILE SYSTEM
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -551,10 +558,20 @@ body::after {
   cursor:pointer; transition:all 0.3s; position:relative; background:rgba(0,0,0,0.4); border-radius:6px;
 }
 .drop-zone:hover, .drop-zone.dragging { border-color:var(--neon-cyan); background:rgba(0,240,255,0.05); box-shadow: inset 0 0 40px rgba(0,240,255,0.1); transform:scale(1.01);}
-.drop-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
 .drop-icon { font-size:48px; margin-bottom:16px; display:block; color:var(--text-dark); transition:all 0.3s;}
-.drop-zone:hover .drop-icon { color:var(--neon-cyan); transform:translateY(-5px); text-shadow:0 0 20px var(--neon-cyan);}
+.drop-zone:hover .drop-icon, .drop-zone.dragging .drop-icon { color:var(--neon-cyan); transform:translateY(-5px); text-shadow:0 0 20px var(--neon-cyan);}
 .drop-headline { font-family:var(--font-disp); font-size:28px; letter-spacing:4px; color:#FFF; margin-bottom:8px; text-shadow:0 0 10px rgba(0,240,255,0.3);}
+.drop-sub { font-family:var(--font-mono); font-size:11px; letter-spacing:2px; color:var(--text-dark); }
+
+/* Upload progress items */
+.upload-item {
+  display:flex; align-items:center; gap:12px; padding:12px 16px;
+  background:rgba(0,0,0,0.6); border:1px solid var(--line); border-radius:6px;
+  margin-top:12px; font-family:var(--font-mono); font-size:12px; color:var(--text-muted);
+  transition: border-color 0.3s;
+}
+.upload-bar-wrap { flex:1; height:4px; background:var(--line); border-radius:2px; overflow:hidden; }
+.upload-bar-fill { height:100%; background:var(--neon-cyan); border-radius:2px; transition:width 0.2s ease; }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    MODALS & LOGIN 
@@ -620,6 +637,9 @@ body::after {
   animation:toastPop 0.4s var(--anim-spring); display:flex; align-items:center; gap:14px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.8); pointer-events:all; text-transform:uppercase; letter-spacing:1px;
 }
+.toast.success { border-left-color:var(--green); }
+.toast.error   { border-left-color:var(--red); }
+.toast.info    { border-left-color:var(--neon-blue); }
 @keyframes toastPop { from{transform:translateX(40px) skewX(10deg);opacity:0;} to{transform:translateX(0) skewX(0);opacity:1;} }
 
 .subuser-item { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:rgba(0,0,0,0.4); border:1px solid var(--line); border-radius:6px; margin-bottom:8px; font-family:var(--font-mono); font-size:14px;}
@@ -628,45 +648,33 @@ body::after {
    MOBILE OPTIMIZATION (FLAWLESS LAYOUT)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 @media(max-width:850px){
-  /* Hide Desktop Sidebar */
   .sidebar { position:fixed; left:-320px; width: 300px; transition:transform 0.4s var(--anim-spring); border-right:1px solid var(--line-bright); }
   .sidebar.open { transform: translateX(320px); }
-  .sidebar .nav { display: none; } /* Hide the nav links in the sidebar, they are on the bottom now */
+  .sidebar .nav { display: none; }
   .sidebar-footer { position: absolute; bottom: 0; width: 100%; }
-  
-  .sidebar-close-btn { display: block; } /* Show close button on mobile sidebar */
-
-  /* Activate Bottom Mobile Nav */
+  .sidebar-close-btn { display: block; }
   .mobile-bottom-nav { display: flex; }
-  
-  /* Main Panel Adjustments */
-  .main { padding-bottom: 90px; /* Clear space for bottom nav */ }
+  .main { padding-bottom: 90px; }
   .topbar { height:auto; min-height:70px; padding:16px 20px; flex-direction:column; align-items:stretch; gap:12px; }
   .topbar-main { display:flex; align-items:center; gap:16px; width:100%; justify-content:space-between;}
   .tb-breadcrumb { flex:1; flex-wrap:wrap; margin-left: 10px;}
   .tb-page { font-size:20px; }
   .tb-bot { max-width: 120px; font-size: 10px; }
-  
-  /* Scrollable Controls */
   .tb-controls { 
     display: flex; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 8px;
     width: 100%; justify-content: flex-start; border-top: 1px solid var(--line); padding-top: 12px; gap: 8px;
     -webkit-overflow-scrolling: touch;
   }
-  .tb-controls::-webkit-scrollbar { display: none; } /* Hide horizontal scrollbar on controls */
+  .tb-controls::-webkit-scrollbar { display: none; }
   .tb-controls .btn { white-space: nowrap; flex-shrink: 0; padding: 12px 16px; font-size: 12px; }
-  
-  /* Inner Pages */
   .page { padding:16px; }
   .stats-row { grid-template-columns:1fr 1fr; gap:12px; margin-bottom: 20px;}
   .form-row-2 { grid-template-columns:1fr; gap:16px;}
   .panel-head { padding:16px; flex-direction:column; align-items:flex-start; gap:12px;}
   .panel-title { font-size:18px; }
   .panel-body { padding:16px; }
-  
-  .toast-tray { bottom: 100px; right: 16px; left: 16px; } /* Lift toasts above nav bar */
+  .toast-tray { bottom: 100px; right: 16px; left: 16px; }
   .toast { justify-content: center; text-align: center; }
-  
   .file-table th, .file-table td { padding: 10px; font-size: 12px; }
   .file-table { min-width: 400px; }
 }
@@ -694,8 +702,8 @@ body::after {
       <div class="login-tab" id="tabRegister" onclick="switchAuthMode('register')">REGISTER</div>
     </div>
 
-    <input class="form-input" id="authUsername" placeholder="USERNAME" style="text-align:center; letter-spacing:2px; padding:16px;" onkeydown="if(event.key==='Enter')submitAuth()">
-    <input type="password" class="form-input" id="authPassword" placeholder="PASSWORD" style="text-align:center; letter-spacing:2px; padding:16px;" onkeydown="if(event.key==='Enter')submitAuth()">
+    <input class="form-input" id="authUsername" placeholder="USERNAME" style="text-align:center; letter-spacing:2px; padding:16px; margin-bottom:12px;" onkeydown="if(event.key==='Enter')submitAuth()">
+    <input type="password" class="form-input" id="authPassword" placeholder="PASSWORD" style="text-align:center; letter-spacing:2px; padding:16px; margin-bottom:12px;" onkeydown="if(event.key==='Enter')submitAuth()">
     
     <button class="btn btn-cyan" id="authBtn" style="width:100%; padding:18px; font-size:16px; margin-top:10px; letter-spacing:4px;" onclick="submitAuth()">AUTHENTICATE</button>
   </div>
@@ -758,6 +766,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: DASHBOARD -->
     <div class="page active" id="page-dashboard">
       <div class="stats-row">
         <div class="stat-block s-cyan"><div class="stat-label">Status</div><div class="stat-value sv-red" id="sStat">OFFLINE</div><div class="stat-sub" id="sStatSub">No active process</div></div>
@@ -788,6 +797,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: CONSOLE -->
     <div class="page" id="page-console">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">PROCESS CONSOLE</div>
@@ -809,6 +819,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: FILES -->
     <div class="page" id="page-files">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">FILE SYSTEM</div>
@@ -840,6 +851,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: ENV -->
     <div class="page" id="page-env">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">ENVIRONMENT VARIABLES</div><button class="btn btn-cyan btn-sm" onclick="saveEnv()">Save Variables</button></div>
@@ -855,6 +867,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: SETTINGS -->
     <div class="page" id="page-settings">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">INSTANCE CONFIGURATION</div></div>
@@ -887,6 +900,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: RESOURCES -->
     <div class="page" id="page-resources">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">SYSTEM HARDWARE</div><span class="panel-tag" style="color:var(--neon-cyan); border-color:var(--neon-cyan); background:rgba(0,240,255,0.1)">LIVE TELEMETRY</span></div>
@@ -934,6 +948,7 @@ body::after {
 
 <div class="toast-tray" id="toastTray"></div>
 
+<!-- MODAL: CREATE BOT -->
 <div class="modal-veil" id="mCreate">
   <div class="modal-box">
     <div class="modal-heading">DEPLOY <span class="modal-heading-accent">INSTANCE</span></div>
@@ -943,6 +958,7 @@ body::after {
   </div>
 </div>
 
+<!-- MODAL: FILE EDITOR -->
 <div class="modal-veil" id="mEditor">
   <div class="modal-box wide">
     <div class="modal-heading">EDIT <span class="modal-heading-accent" id="edName">FILE</span></div>
@@ -951,6 +967,7 @@ body::after {
   </div>
 </div>
 
+<!-- MODAL: NEW FILE -->
 <div class="modal-veil" id="mNewFile">
   <div class="modal-box">
     <div class="modal-heading">CREATE <span class="modal-heading-accent">FILE</span></div>
@@ -960,6 +977,9 @@ body::after {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════ -->
 <script>
 const sock = io({transports: ['websocket', 'polling']});
 let curBot = null, botRegistry = {}, startTimes = {}, uptimeIv = null, resIv = null;
@@ -981,36 +1001,29 @@ sock.on('status_update', ({bot_id, status, start_time}) => {
 function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('open');
   const overlay = document.querySelector('.sidebar-overlay');
-  if(overlay.classList.contains('open')){ 
-    overlay.classList.remove('open'); 
-    setTimeout(()=>overlay.style.display='none', 300); 
-  } else { 
-    overlay.style.display='block'; 
-    void overlay.offsetWidth; // force reflow
-    overlay.classList.add('open'); 
+  if(overlay.classList.contains('open')){
+    overlay.classList.remove('open');
+    setTimeout(()=>overlay.style.display='none', 300);
+  } else {
+    overlay.style.display='block';
+    void overlay.offsetWidth;
+    overlay.classList.add('open');
   }
 }
 
 const PAGE_NAMES = {dashboard:'DASHBOARD', console:'CONSOLE',files:'FILE MANAGER',env:'ENVIRONMENT',settings:'SETTINGS',resources:'RESOURCES'};
 
 function navTo(name, el) {
-  // Update desktop nav
   document.querySelectorAll('.sidebar .nav-item').forEach(n => n.classList.remove('active'));
   const dNav = document.querySelector(`.sidebar .nav-item[data-page="${name}"]`);
   if(dNav) dNav.classList.add('active');
-  
-  // Update mobile bottom nav
   document.querySelectorAll('.mobile-bottom-nav .m-nav-item').forEach(n => n.classList.remove('active'));
   const mNav = document.querySelector(`.mobile-bottom-nav .m-nav-item[data-page="${name}"]`);
   if(mNav) mNav.classList.add('active');
-
-  // Update Page
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const p = document.getElementById('page-' + name);
   if (p) p.classList.add('active');
-  
   document.getElementById('tbPage').textContent = PAGE_NAMES[name] || name.toUpperCase();
-  
   if (name === 'files') loadFiles();
   if (name === 'env') loadEnv();
   if (name === 'settings') loadSettings();
@@ -1045,11 +1058,9 @@ async function submitAuth() {
   const u = document.getElementById('authUsername').value.trim();
   const p = document.getElementById('authPassword').value;
   if (!u || !p) { toast('Credentials required', 'error'); return; }
-  
   const endpoint = authMode === 'login' ? '/api/login' : '/api/register';
   const r = await fetch(endpoint, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u, password:p})});
   const res = await r.json();
-  
   if(r.ok) location.reload();
   else toast(res.error || 'Authentication Failed', 'error');
 }
@@ -1080,9 +1091,8 @@ function renderBotList() {
     const status = b.status || 'offline';
     const isShared = b.is_shared ? `<span class="bot-shared-icon">SHARED</span>` : '';
     d.innerHTML = `<div class="bot-indicator ${status}"></div><div style="flex:1;"><div class="bot-name">${escH(b.name||id)}</div><div style="display:flex;"><div class="bot-status-text">${status}</div>${isShared}</div></div>`;
-    d.onclick = () => { 
-      selectBot(id); 
-      // Close sidebar if on mobile
+    d.onclick = () => {
+      selectBot(id);
       if(window.innerWidth <= 850 && document.querySelector('.sidebar').classList.contains('open')) {
         toggleSidebar();
       }
@@ -1099,16 +1109,16 @@ function selectBot(id) {
   ['mainTerm','miniTerm'].forEach(i => document.getElementById(i).innerHTML = '');
   applyStatus(b?.status || 'offline');
   renderBotList(); loadBotLogs(); startUptime();
-  
+
   if(b && b.is_shared) {
-      document.getElementById('accessMgmtTitle').style.display = 'none';
-      document.getElementById('accessMgmtSection').style.display = 'none';
-      document.getElementById('dangerZoneSection').style.display = 'none';
+    document.getElementById('accessMgmtTitle').style.display = 'none';
+    document.getElementById('accessMgmtSection').style.display = 'none';
+    document.getElementById('dangerZoneSection').style.display = 'none';
   } else {
-      document.getElementById('accessMgmtTitle').style.display = 'block';
-      document.getElementById('accessMgmtSection').style.display = 'block';
-      document.getElementById('dangerZoneSection').style.display = 'block';
-      if (document.getElementById('page-settings').classList.contains('active')) loadSettings();
+    document.getElementById('accessMgmtTitle').style.display = 'block';
+    document.getElementById('accessMgmtSection').style.display = 'block';
+    document.getElementById('dangerZoneSection').style.display = 'block';
+    if (document.getElementById('page-settings').classList.contains('active')) loadSettings();
   }
 }
 
@@ -1175,6 +1185,7 @@ async function deleteBot() {
   toast('Instance wiped', 'error');
 }
 
+// ── Console ──────────────────────────────────
 function appendLog(msg, level, ts) {
   const tagMap = {system:'sys',error:'err',success:'ok',warn:'warn',default:'out'};
   const tag = tagMap[level] || 'out';
@@ -1194,6 +1205,7 @@ async function sendInput() {
   await apiFetch(`/api/bot/${curBot}/input`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({input:v+'\n'})});
 }
 
+// ── Files ────────────────────────────────────
 const EXT_COLORS = {py:'#00FF66',js:'#FFB800',json:'#00F0FF',md:'#B000FF',txt:'#6A85B6',sh:'#00F0FF',zip:'#FF0055',env:'#FFB800',ts:'#00F0FF'};
 function fileGlyph(ext){const g={py:'🐍',js:'⚡',json:'{}',txt:'≡',md:'#',zip:'⊞',env:'⊛',sh:'$',ts:'⟨⟩'};return `<span style="font-family:var(--font-mono);font-size:14px;opacity:.9">${g[ext]||'□'}</span>`;}
 
@@ -1209,6 +1221,7 @@ async function loadFiles() {
     return `<tr><td><div class="file-name-cell" onclick='editFile(${jn})'>${fileGlyph(ext)} ${escH(f.name)}</div></td><td><span class="file-ext-badge" style="color:${c}; border-color:${c}40">${ext}</span></td><td>${escH(f.size)}</td><td>${escH(f.modified)}</td><td><div class="btn-row"><button class="btn btn-ghost btn-sm" onclick='editFile(${jn})'>✏</button><button class="btn btn-ghost btn-sm" onclick='dlFile(${jn})'>↓</button><button class="btn btn-red btn-sm" onclick='delFile(${jn})'>⊘</button></div></td></tr>`;
   }).join('');
 }
+
 async function editFile(name) {
   const r = await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`); if(!r)return;
   const d = await r.json();
@@ -1229,49 +1242,101 @@ async function createNewFile(){
 async function delFile(name){if(!confirm(`Delete ${name}?`))return; await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`,{method:'DELETE'}); loadFiles(); toast(`File erased`,'success');}
 function dlFile(name){window.location.href=`/api/bot/${curBot}/file/${encodeURIComponent(name)}/download`;}
 
+// ── Upload (Fixed) ────────────────────────────
 async function handleUpload(files) {
-  if(!curBot) return;
-  document.getElementById('fileUploadInput').value='';
-  document.getElementById('folderUploadInput').value='';
-  const prog=document.getElementById('uploadProgress');
-  
-  for(let i=0; i<files.length; i++) {
-    const file = files[i];
-    const fd=new FormData(); 
+  if (!curBot) { toast('Select an instance first', 'error'); return; }
+  // Reset inputs so the same file can be re-uploaded
+  document.getElementById('fileUploadInput').value = '';
+  document.getElementById('folderUploadInput').value = '';
+  if (!files || !files.length) return;
+
+  const prog = document.getElementById('uploadProgress');
+  let okCount = 0, failCount = 0;
+
+  for (const file of Array.from(files)) {
+    const fd = new FormData();
     fd.append('file', file);
-    // Use webkitRelativePath for nested folders if available
-    let uploadPath = file.webkitRelativePath || file.name;
-    fd.append('path', uploadPath);
-    
-    const wrap=document.createElement('div');
-    wrap.style.cssText = "display:flex; align-items:center; gap:12px; padding:12px; background:rgba(0,0,0,0.6); border:1px solid var(--line); border-radius:6px; margin-top:12px; font-family:var(--font-mono); font-size:12px;";
-    const sid='up_'+Math.random().toString(36).slice(2);
-    wrap.innerHTML=`<span style="color:var(--neon-cyan)">⇪</span><span style="flex:0 0 160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(file.name)}</span><div style="flex:1;height:4px;background:var(--line);border-radius:2px;overflow:hidden;"><div id="${sid}" style="height:100%;width:0%;background:var(--neon-cyan);transition:width 0.3s ease;"></div></div>`;
+
+    // Build a progress row
+    const wrap = document.createElement('div');
+    wrap.className = 'upload-item';
+    const sid = 'up_' + Math.random().toString(36).slice(2);
+    wrap.innerHTML = `
+      <span style="flex-shrink:0;color:var(--neon-cyan)">⇪</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(file.name)}</span>
+      <div class="upload-bar-wrap"><div class="upload-bar-fill" id="${sid}" style="width:0%"></div></div>
+      <span id="${sid}st" style="font-family:var(--font-mono);font-size:11px;color:var(--text-dark);flex-shrink:0;min-width:28px;text-align:right">0%</span>`;
     prog.appendChild(wrap);
-    
+
     try {
-        const r = await fetch(`/api/bot/${curBot}/upload`, {method:'POST', body:fd});
-        const bar = document.getElementById(sid);
-        if(r.ok) {
-            if(bar) bar.style.width='100%';
-            setTimeout(()=>wrap.remove(), 2000);
-        } else {
-            if(bar) bar.style.background='var(--red)';
-            toast(`Failed to upload ${file.name}`, 'error');
-        }
-    } catch(e) {
-        toast(`Network error on ${file.name}`, 'error');
+      // Use XHR for real upload progress events
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `/api/bot/${curBot}/upload`);
+
+        xhr.upload.addEventListener('progress', e => {
+          if (e.lengthComputable) {
+            const pct = Math.round(e.loaded / e.total * 90);
+            const bar = document.getElementById(sid);
+            const st  = document.getElementById(sid + 'st');
+            if (bar) bar.style.width = pct + '%';
+            if (st)  st.textContent  = pct + '%';
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 401) {
+            document.getElementById('loginOverlay').style.display = 'flex';
+            reject(new Error('Unauthorized'));
+            return;
+          }
+          let resp = {};
+          try { resp = JSON.parse(xhr.responseText); } catch(e) {}
+          if (resp.error) { reject(new Error(resp.error)); return; }
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`HTTP ${xhr.status}`));
+        });
+
+        xhr.addEventListener('error',  () => reject(new Error('Network error')));
+        xhr.addEventListener('abort',  () => reject(new Error('Aborted')));
+        xhr.send(fd);
+      });
+
+      // Success
+      const bar = document.getElementById(sid);
+      const st  = document.getElementById(sid + 'st');
+      if (bar) { bar.style.width = '100%'; bar.style.background = 'var(--green)'; }
+      if (st)  { st.textContent = '✓'; st.style.color = 'var(--green)'; }
+      okCount++;
+      setTimeout(() => wrap.remove(), 2500);
+
+    } catch(err) {
+      const bar = document.getElementById(sid);
+      const st  = document.getElementById(sid + 'st');
+      if (bar) { bar.style.width = '100%'; bar.style.background = 'var(--red)'; }
+      if (st)  { st.textContent = '✕'; st.style.color = 'var(--red)'; }
+      wrap.style.borderColor = 'rgba(255,0,85,0.4)';
+      failCount++;
+      console.error('Upload failed:', file.name, err.message);
+      setTimeout(() => wrap.remove(), 4000);
     }
   }
-  
-  loadFiles(); 
-  toast(`Upload sequence complete`, 'success');
-}
-const dz=document.getElementById('dropZone');
-dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragging');});
-dz.addEventListener('dragleave',()=>dz.classList.remove('dragging'));
-dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragging');handleUpload(e.dataTransfer.files);});
 
+  loadFiles();
+  if (okCount > 0 && failCount === 0)     toast(`${okCount} file${okCount>1?'s':''} uploaded`, 'success');
+  else if (okCount > 0 && failCount > 0)  toast(`${okCount} uploaded, ${failCount} failed`, 'info');
+  else                                     toast('Upload failed — check console', 'error');
+}
+
+// Drag-and-drop — depth counter prevents flicker from child element mouseovers
+const dz = document.getElementById('dropZone');
+let _dzDepth = 0;
+dz.addEventListener('dragenter', e => { e.preventDefault(); _dzDepth++; dz.classList.add('dragging'); });
+dz.addEventListener('dragleave', () => { if (--_dzDepth <= 0) { _dzDepth = 0; dz.classList.remove('dragging'); } });
+dz.addEventListener('dragover',  e => e.preventDefault());
+dz.addEventListener('drop', e => { e.preventDefault(); _dzDepth = 0; dz.classList.remove('dragging'); handleUpload(e.dataTransfer.files); });
+
+// ── Env ──────────────────────────────────────
 async function loadEnv(){
   if(!curBot)return; const r=await apiFetch(`/api/bot/${curBot}/env`); if(!r)return;
   const env=await r.json(); const c=document.getElementById('envRows'); c.innerHTML='';
@@ -1288,24 +1353,25 @@ async function saveEnv(){
   await apiFetch(`/api/bot/${curBot}/env`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(env)}); toast('Environment synced','success');
 }
 
+// ── Settings ─────────────────────────────────
 async function loadSettings(){
-  if(!curBot)return; 
+  if(!curBot)return;
   const b = botRegistry[curBot] || {};
-  document.getElementById('stName').value=b.name||''; 
-  document.getElementById('stStartup').value=b.startup_file||'main.py'; 
+  document.getElementById('stName').value=b.name||'';
+  document.getElementById('stStartup').value=b.startup_file||'main.py';
   document.getElementById('stAR').value=b.auto_restart?'true':'false';
-  
+
   if(!b.is_shared) {
-     const r = await apiFetch(`/api/bot/${curBot}/subusers`);
-     if(r) {
-         const users = await r.json();
-         const c = document.getElementById('subuserList'); c.innerHTML = '';
-         users.forEach(u => {
-             const div = document.createElement('div'); div.className = 'subuser-item';
-             div.innerHTML = `<span>${escH(u)}</span><button class="btn btn-red btn-sm" onclick="removeSubuser('${escH(u)}')">REVOKE</button>`;
-             c.appendChild(div);
-         });
-     }
+    const r = await apiFetch(`/api/bot/${curBot}/subusers`);
+    if(r) {
+      const users = await r.json();
+      const c = document.getElementById('subuserList'); c.innerHTML = '';
+      users.forEach(u => {
+        const div = document.createElement('div'); div.className = 'subuser-item';
+        div.innerHTML = `<span>${escH(u)}</span><button class="btn btn-red btn-sm" onclick="removeSubuser('${escH(u)}')">REVOKE</button>`;
+        c.appendChild(div);
+      });
+    }
   }
 }
 async function saveSettings(){
@@ -1320,16 +1386,16 @@ async function addSubuser() {
   const u = document.getElementById('newSubuser').value.trim();
   if(!u) return;
   const r = await apiFetch(`/api/bot/${curBot}/subusers`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username: u})});
-  if(r && r.ok) { document.getElementById('newSubuser').value=''; loadSettings(); toast(`Access granted to ${u}`); }
+  if(r && r.ok) { document.getElementById('newSubuser').value=''; loadSettings(); toast(`Access granted to ${u}`,'success'); }
   else toast('User not found or error', 'error');
 }
-
 async function removeSubuser(u) {
   if(!curBot) return;
   const r = await apiFetch(`/api/bot/${curBot}/subusers/${encodeURIComponent(u)}`, {method:'DELETE'});
-  if(r && r.ok) { loadSettings(); toast(`Access revoked for ${u}`); }
+  if(r && r.ok) { loadSettings(); toast(`Access revoked for ${u}`,'success'); }
 }
 
+// ── Uptime ───────────────────────────────────
 function startUptime(){
   clearInterval(uptimeIv);
   uptimeIv=setInterval(()=>{
@@ -1340,6 +1406,7 @@ function startUptime(){
   },1000);
 }
 
+// ── Resources ────────────────────────────────
 function startRes(){stopRes();fetchRes();resIv=setInterval(fetchRes,3000);}
 function stopRes(){clearInterval(resIv);}
 async function fetchRes(){
@@ -1351,20 +1418,30 @@ async function fetchRes(){
     document.getElementById('pMem').style.width=d.mem_pct+'%';
     document.getElementById('rDsk').textContent=d.disk_pct+'%';
     document.getElementById('pDsk').style.width=d.disk_pct+'%';
-    document.getElementById('sCpu').textContent=d.cpu+'%'; document.getElementById('sMem').textContent=d.mem_used;
+    document.getElementById('sCpu').textContent=d.cpu+'%';
+    document.getElementById('sMem').textContent=d.mem_used;
   }catch(e){}
 }
 
+// ── Helpers ──────────────────────────────────
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
-function toast(msg,type='success'){
+function toast(msg, type='success'){
   const tray=document.getElementById('toastTray');
-  const t=document.createElement('div'); t.className=`toast ${type}`;
-  t.innerHTML=`<span style="color:var(--neon-cyan)">[SYS]</span> ${escH(msg)}`;
+  const icons={success:'✓',error:'✕',info:'ℹ'};
+  const t=document.createElement('div');
+  t.className=`toast ${type}`;
+  t.innerHTML=`<span>${icons[type]||'·'}</span> ${escH(msg)}`;
   tray.appendChild(t);
-  setTimeout(()=>{t.style.transition='all 0.5s var(--anim-spring)';t.style.opacity='0';t.style.transform='translateX(40px) skewX(10deg)';setTimeout(()=>t.remove(),500);},3000);
+  setTimeout(()=>{
+    t.style.transition='all 0.5s var(--anim-spring)';
+    t.style.opacity='0';
+    t.style.transform='translateX(40px) skewX(10deg)';
+    setTimeout(()=>t.remove(),500);
+  },3000);
 }
 
+// ── Init ─────────────────────────────────────
 checkAuth().then(ok=>{if(ok){loadBots();fetchRes();setInterval(fetchRes,5000);}});
 </script>
 </body>
@@ -1394,14 +1471,11 @@ def login():
     password = data.get('password', '')
     if not username or not password:
         return jsonify({'error': 'Credentials required'}), 400
-    
     users = load_users()
     if username not in users:
         return jsonify({'error': 'User not found'}), 401
-    
     if users[username]['pwd'] != password:
         return jsonify({'error': 'Invalid password'}), 401
-        
     session['username'] = username
     return jsonify({'ok': True})
 
@@ -1412,14 +1486,11 @@ def register():
     password = data.get('password', '')
     if not username or not password:
         return jsonify({'error': 'Credentials required'}), 400
-    
     users = load_users()
     if username in users:
         return jsonify({'error': 'Username already exists'}), 400
-        
     users[username] = {'pwd': password}
     save_users(users)
-    
     session['username'] = username
     return jsonify({'ok': True})
 
@@ -1434,7 +1505,6 @@ def me():
         return jsonify({'username': session['username']})
     return jsonify({'error': 'unauthorized'}), 401
 
-
 # ── BOT MANAGEMENT ──
 @app.route('/api/bots')
 def get_bots():
@@ -1446,7 +1516,6 @@ def get_bots():
     for bid, bc in cfg.items():
         owner = bc.get('owner')
         shared = bc.get('shared_with', [])
-        
         if owner == user or user in shared:
             running = is_running(bid)
             out[bid] = {
@@ -1456,7 +1525,7 @@ def get_bots():
                 'status': 'online' if running else 'offline',
                 'auto_restart': bc.get('auto_restart', False),
                 'start_time': bots.get(bid, {}).get('start_time') if running else None,
-                'is_shared': owner != user 
+                'is_shared': owner != user
             }
     return jsonify(out)
 
@@ -1494,7 +1563,6 @@ def del_bot(bid):
     bots.pop(bid, None)
     return jsonify({'ok': True})
 
-
 # ── SUBUSERS ──
 @app.route('/api/bot/<bid>/subusers', methods=['GET'])
 def get_subusers(bid):
@@ -1505,11 +1573,9 @@ def get_subusers(bid):
 def add_subuser(bid):
     if not check_owner(bid): return jsonify({'error': 'unauth'}), 401
     target_user = (request.json or {}).get('username', '').strip()
-    
     users = load_users()
     if target_user not in users:
         return jsonify({'error': 'User does not exist on platform'}), 404
-        
     cfg = load_config()
     shared = cfg.get(bid, {}).get('shared_with', [])
     if target_user not in shared and target_user != cfg[bid]['owner']:
@@ -1528,7 +1594,6 @@ def remove_subuser(bid, user):
         cfg[bid]['shared_with'] = shared
         save_config(cfg)
     return jsonify({'ok': True})
-
 
 # ── ACTIONS ──
 @app.route('/api/bot/<bid>/start', methods=['POST'])
@@ -1573,7 +1638,6 @@ def logs_route(bid):
     if not check_access(bid): return jsonify({'error': 'unauth'}), 401
     memory_logs = bots.get(bid, {}).get('logs', [])
     if memory_logs: return jsonify(memory_logs)
-        
     log_file = os.path.join(get_bot_dir(bid), 'system.log')
     disk_logs = []
     if os.path.exists(log_file):
@@ -1593,7 +1657,7 @@ def files_route(bid):
     out = []
     for root, dirs, files in os.walk(bd):
         for f in files:
-            if f == 'system.log': continue 
+            if f == 'system.log': continue
             fp = os.path.join(root, f)
             rel = os.path.relpath(fp, bd).replace('\\', '/')
             sz = os.path.getsize(fp)
@@ -1639,42 +1703,66 @@ def dl_file(bid, fn):
 def upload_route(bid):
     if not check_access(bid): return jsonify({'error': 'unauth'}), 401
     if 'file' not in request.files: return jsonify({'error': 'no file'}), 400
-    
     file = request.files['file']
-    rel_path = request.form.get('path')
-    if not rel_path:
-        rel_path = file.filename
-        
-    if not rel_path: return jsonify({'error': 'invalid filename'}), 400
-    
-    # Ensure the filename is safe but allow subdirectories if provided in path
-    filename = os.path.basename(rel_path)
-    safe_rel_path = os.path.join(os.path.dirname(rel_path), secure_filename(filename or 'file'))
-    
-    fp = safe_path(bid, safe_rel_path)
-    if not fp: return jsonify({'error': 'invalid path mapping'}), 403
-    
-    os.makedirs(os.path.dirname(fp), exist_ok=True)
-    file.save(fp)
-    
-    if fp.lower().endswith('.zip'):
-        try:
-            bd = get_bot_dir(bid)
-            with zipfile.ZipFile(fp, 'r') as zf:
-                for m in zf.namelist():
-                    mp = os.path.abspath(os.path.join(bd, m))
-                    if mp.startswith(os.path.abspath(bd) + os.sep):
-                        zf.extract(m, bd)
-            os.remove(fp)
-            emit_log(bid, f'[System] Extracted {rel_path}', 'system')
-        except Exception as e:
-            emit_log(bid, f'[Error] ZIP: {e}', 'error')
-            return jsonify({'error': 'Zip extraction failed'}), 500
-    else:
-        emit_log(bid, f'[System] Uploaded {rel_path}', 'system')
-        
-    return jsonify({'ok': True})
+    if not file or not file.filename:
+        return jsonify({'error': 'no file selected'}), 400
 
+    bd = get_bot_dir(bid)
+    abs_bd = os.path.abspath(bd)
+
+    # Strip to basename only — no path traversal via filename
+    fname = secure_filename(os.path.basename(file.filename))
+    if not fname:
+        return jsonify({'error': 'invalid filename'}), 400
+
+    sp = os.path.join(bd, fname)
+    try:
+        file.save(sp)
+    except Exception as e:
+        return jsonify({'error': f'Save failed: {e}'}), 500
+
+    if fname.lower().endswith('.zip'):
+        extracted, blocked = 0, 0
+        try:
+            with zipfile.ZipFile(sp, 'r') as zf:
+                # Reject password-protected zips
+                for info in zf.infolist():
+                    if info.flag_bits & 0x1:
+                        emit_log(bid, '[Error] ZIP is password-protected', 'error')
+                        os.remove(sp)
+                        return jsonify({'error': 'password-protected zip'}), 400
+
+                for m in zf.namelist():
+                    mp = os.path.abspath(os.path.join(abs_bd, m))
+                    if mp.startswith(abs_bd + os.sep):
+                        parent = os.path.dirname(mp)
+                        os.makedirs(parent, exist_ok=True)
+                        if not m.endswith('/'):
+                            with zf.open(m) as src, open(mp, 'wb') as dst:
+                                dst.write(src.read())
+                            extracted += 1
+                    else:
+                        log.warning(f'Blocked zip-slip attempt: {m}')
+                        blocked += 1
+
+            os.remove(sp)
+            msg = f'[System] Extracted {extracted} file(s) from {fname}'
+            if blocked:
+                msg += f' ({blocked} path(s) blocked)'
+            emit_log(bid, msg, 'success' if extracted else 'warn')
+
+        except zipfile.BadZipFile:
+            emit_log(bid, f'[Error] {fname} is not a valid ZIP file', 'error')
+            if os.path.exists(sp): os.remove(sp)
+            return jsonify({'error': 'bad zip file'}), 400
+        except Exception as e:
+            emit_log(bid, f'[Error] ZIP extract failed: {e}', 'error')
+            if os.path.exists(sp): os.remove(sp)
+            return jsonify({'error': str(e)}), 500
+    else:
+        emit_log(bid, f'[System] Uploaded {fname}', 'system')
+
+    return jsonify({'ok': True, 'filename': fname})
 
 # ── CONFIG / SETTINGS ──
 @app.route('/api/bot/<bid>/env')
