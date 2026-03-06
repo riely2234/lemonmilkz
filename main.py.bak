@@ -27,6 +27,7 @@ from logging import Formatter, StreamHandler, getLogger
 from flask import Flask, jsonify, render_template_string, request, send_file, session
 from flask_socketio import SocketIO, join_room
 from werkzeug.utils import secure_filename
+# Encryption imports removed so passwords save as decrypted text
 
 log = getLogger('vortexhost')
 log.setLevel(logging.INFO)
@@ -95,11 +96,8 @@ def get_bot_dir(bot_id):
 
 def safe_path(bot_id, fn):
     bd = os.path.abspath(get_bot_dir(bot_id))
-    # Prevent absolute paths by stripping leading slashes and backslashes
-    clean_fn = fn.lstrip('\\/')
+    clean_fn = os.path.normpath('/' + fn).lstrip('/')
     fp = os.path.abspath(os.path.join(bd, clean_fn))
-    
-    # Ensure the resolved path is strictly within the bot directory
     if fp == bd or fp.startswith(bd + os.sep):
         return fp
     return None
@@ -768,6 +766,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: DASHBOARD -->
     <div class="page active" id="page-dashboard">
       <div class="stats-row">
         <div class="stat-block s-cyan"><div class="stat-label">Status</div><div class="stat-value sv-red" id="sStat">OFFLINE</div><div class="stat-sub" id="sStatSub">No active process</div></div>
@@ -798,6 +797,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: CONSOLE -->
     <div class="page" id="page-console">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">PROCESS CONSOLE</div>
@@ -819,12 +819,12 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: FILES -->
     <div class="page" id="page-files">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">FILE SYSTEM</div>
           <div class="btn-row">
             <button class="btn btn-ghost btn-sm" onclick="openNewFileModal()">+ New File</button>
-            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('fileUploadInput').click()">+ Upload File(s)</button>
             <button class="btn btn-ghost btn-sm" onclick="document.getElementById('folderUploadInput').click()">+ Upload Folder</button>
             <button class="btn btn-cyan btn-sm" onclick="loadFiles()">↻ Refresh</button>
             <input type="file" multiple id="fileUploadInput" style="display:none" onchange="handleUpload(this.files)">
@@ -851,6 +851,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: ENV -->
     <div class="page" id="page-env">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">ENVIRONMENT VARIABLES</div><button class="btn btn-cyan btn-sm" onclick="saveEnv()">Save Variables</button></div>
@@ -866,6 +867,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: SETTINGS -->
     <div class="page" id="page-settings">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">INSTANCE CONFIGURATION</div></div>
@@ -898,6 +900,7 @@ body::after {
       </div>
     </div>
 
+    <!-- PAGE: RESOURCES -->
     <div class="page" id="page-resources">
       <div class="panel">
         <div class="panel-head"><div class="panel-title">SYSTEM HARDWARE</div><span class="panel-tag" style="color:var(--neon-cyan); border-color:var(--neon-cyan); background:rgba(0,240,255,0.1)">LIVE TELEMETRY</span></div>
@@ -945,6 +948,7 @@ body::after {
 
 <div class="toast-tray" id="toastTray"></div>
 
+<!-- MODAL: CREATE BOT -->
 <div class="modal-veil" id="mCreate">
   <div class="modal-box">
     <div class="modal-heading">DEPLOY <span class="modal-heading-accent">INSTANCE</span></div>
@@ -954,6 +958,7 @@ body::after {
   </div>
 </div>
 
+<!-- MODAL: FILE EDITOR -->
 <div class="modal-veil" id="mEditor">
   <div class="modal-box wide">
     <div class="modal-heading">EDIT <span class="modal-heading-accent" id="edName">FILE</span></div>
@@ -962,6 +967,7 @@ body::after {
   </div>
 </div>
 
+<!-- MODAL: NEW FILE -->
 <div class="modal-veil" id="mNewFile">
   <div class="modal-box">
     <div class="modal-heading">CREATE <span class="modal-heading-accent">FILE</span></div>
@@ -971,6 +977,9 @@ body::after {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════ -->
 <script>
 const sock = io({transports: ['websocket', 'polling']});
 let curBot = null, botRegistry = {}, startTimes = {}, uptimeIv = null, resIv = null;
@@ -1438,4 +1447,365 @@ function toast(msg, type='success'){
 checkAuth().then(ok=>{if(ok){loadBots();fetchRes();setInterval(fetchRes,5000);}});
 </script>
 </body>
-</html>
+</html>"""
+
+# ═══════════════════════════════════════════════
+#  SOCKET EVENTS
+# ═══════════════════════════════════════════════
+@socketio.on('connect')
+def handle_connect():
+    user = session.get('username')
+    if user:
+        join_room(user)
+        log.info(f'WS connected: {user}')
+
+# ═══════════════════════════════════════════════
+#  HTTP ROUTES
+# ═══════════════════════════════════════════════
+@app.route('/')
+def index():
+    return render_template_string(HTML)
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    if not username or not password:
+        return jsonify({'error': 'Credentials required'}), 400
+    users = load_users()
+    if username not in users:
+        return jsonify({'error': 'User not found'}), 401
+    if users[username]['pwd'] != password:
+        return jsonify({'error': 'Invalid password'}), 401
+    session['username'] = username
+    return jsonify({'ok': True})
+
+@app.route('/api/register', methods=['POST'])
+def register():
+    data = request.json or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    if not username or not password:
+        return jsonify({'error': 'Credentials required'}), 400
+    users = load_users()
+    if username in users:
+        return jsonify({'error': 'Username already exists'}), 400
+    users[username] = {'pwd': password}
+    save_users(users)
+    session['username'] = username
+    return jsonify({'ok': True})
+
+@app.route('/api/logout', methods=['POST'])
+def do_logout():
+    session.clear()
+    return jsonify({'ok': True})
+
+@app.route('/api/me')
+def me():
+    if 'username' in session:
+        return jsonify({'username': session['username']})
+    return jsonify({'error': 'unauthorized'}), 401
+
+# ── BOT MANAGEMENT ──
+@app.route('/api/bots')
+def get_bots():
+    user = session.get('username')
+    if not user:
+        return jsonify({'error': 'unauth'}), 401
+    cfg = load_config()
+    out = {}
+    for bid, bc in cfg.items():
+        owner = bc.get('owner')
+        shared = bc.get('shared_with', [])
+        if owner == user or user in shared:
+            running = is_running(bid)
+            out[bid] = {
+                'id': bid,
+                'name': bc.get('name', bid),
+                'startup_file': bc.get('startup_file', 'main.py'),
+                'status': 'online' if running else 'offline',
+                'auto_restart': bc.get('auto_restart', False),
+                'start_time': bots.get(bid, {}).get('start_time') if running else None,
+                'is_shared': owner != user
+            }
+    return jsonify(out)
+
+@app.route('/api/bots', methods=['POST'])
+def create_bot_route():
+    user = session.get('username')
+    if not user:
+        return jsonify({'error': 'unauth'}), 401
+    data = request.json or {}
+    bid = f"bot_{int(time.time() * 1000)}"
+    cfg = load_config()
+    cfg[bid] = {
+        'name': data.get('name', 'New Instance'),
+        'startup_file': data.get('startup_file', 'main.py'),
+        'auto_restart': False,
+        'env': {},
+        'owner': user,
+        'shared_with': []
+    }
+    save_config(cfg)
+    get_bot_dir(bid)
+    return jsonify({'id': bid, **cfg[bid], 'status': 'offline', 'is_shared': False})
+
+@app.route('/api/bot/<bid>', methods=['DELETE'])
+def del_bot(bid):
+    if not check_owner(bid):
+        return jsonify({'error': 'unauth or not owner'}), 401
+    stop_bot(bid)
+    cfg = load_config()
+    cfg.pop(bid, None)
+    save_config(cfg)
+    bd = os.path.join(BOTS_DIR, bid)
+    if os.path.exists(bd):
+        shutil.rmtree(bd)
+    bots.pop(bid, None)
+    return jsonify({'ok': True})
+
+# ── SUBUSERS ──
+@app.route('/api/bot/<bid>/subusers', methods=['GET'])
+def get_subusers(bid):
+    if not check_owner(bid): return jsonify({'error': 'unauth'}), 401
+    return jsonify(load_config().get(bid, {}).get('shared_with', []))
+
+@app.route('/api/bot/<bid>/subusers', methods=['POST'])
+def add_subuser(bid):
+    if not check_owner(bid): return jsonify({'error': 'unauth'}), 401
+    target_user = (request.json or {}).get('username', '').strip()
+    users = load_users()
+    if target_user not in users:
+        return jsonify({'error': 'User does not exist on platform'}), 404
+    cfg = load_config()
+    shared = cfg.get(bid, {}).get('shared_with', [])
+    if target_user not in shared and target_user != cfg[bid]['owner']:
+        shared.append(target_user)
+        cfg[bid]['shared_with'] = shared
+        save_config(cfg)
+    return jsonify({'ok': True})
+
+@app.route('/api/bot/<bid>/subusers/<user>', methods=['DELETE'])
+def remove_subuser(bid, user):
+    if not check_owner(bid): return jsonify({'error': 'unauth'}), 401
+    cfg = load_config()
+    shared = cfg.get(bid, {}).get('shared_with', [])
+    if user in shared:
+        shared.remove(user)
+        cfg[bid]['shared_with'] = shared
+        save_config(cfg)
+    return jsonify({'ok': True})
+
+# ── ACTIONS ──
+@app.route('/api/bot/<bid>/start', methods=['POST'])
+def start_route(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    sf = (request.json or {}).get('startup_file')
+    threading.Thread(target=start_bot, args=(bid, sf), daemon=True).start()
+    return jsonify({'ok': True})
+
+@app.route('/api/bot/<bid>/stop', methods=['POST'])
+def stop_route(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    stop_bot(bid)
+    return jsonify({'ok': True})
+
+@app.route('/api/bot/<bid>/kill', methods=['POST'])
+def kill_route(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    if bid in bots and bots[bid].get('process'):
+        try:
+            bots[bid]['process'].kill()
+            emit_log(bid, '[System] Force killed.', 'error')
+        except Exception: pass
+    return jsonify({'ok': True})
+
+@app.route('/api/bot/<bid>/input', methods=['POST'])
+def input_route(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    inp = (request.json or {}).get('input', '')
+    if len(inp) > 4096: return jsonify({'error': 'input too long'}), 400
+    if bid in bots and bots[bid].get('process'):
+        p = bots[bid]['process']
+        if p.poll() is None and p.stdin:
+            try:
+                p.stdin.write(inp)
+                p.stdin.flush()
+            except Exception: pass
+    return jsonify({'ok': True})
+
+@app.route('/api/bot/<bid>/logs')
+def logs_route(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    memory_logs = bots.get(bid, {}).get('logs', [])
+    if memory_logs: return jsonify(memory_logs)
+    log_file = os.path.join(get_bot_dir(bid), 'system.log')
+    disk_logs = []
+    if os.path.exists(log_file):
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                for line in f.readlines()[-500:]:
+                    try: disk_logs.append(json.loads(line.strip()))
+                    except Exception: pass
+        except Exception: pass
+    return jsonify(disk_logs)
+
+# ── FILES ──
+@app.route('/api/bot/<bid>/files')
+def files_route(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    bd = get_bot_dir(bid)
+    out = []
+    for root, dirs, files in os.walk(bd):
+        for f in files:
+            if f == 'system.log': continue
+            fp = os.path.join(root, f)
+            rel = os.path.relpath(fp, bd).replace('\\', '/')
+            sz = os.path.getsize(fp)
+            s = f"{sz}B" if sz < 1024 else f"{sz//1024}KB" if sz < 1024**2 else f"{sz//1024//1024}MB"
+            out.append({'name': rel, 'size': s, 'modified': time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(fp)))})
+    return jsonify(out)
+
+@app.route('/api/bot/<bid>/file/<path:fn>', methods=['GET'])
+def get_file(bid, fn):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    fp = safe_path(bid, fn)
+    if not fp: return jsonify({'error': 'invalid path'}), 403
+    if not os.path.exists(fp): return jsonify({'content': ''})
+    try: return jsonify({'content': open(fp, encoding='utf-8', errors='replace').read()})
+    except Exception: return jsonify({'content': '[Binary — cannot display]'})
+
+@app.route('/api/bot/<bid>/file/<path:fn>', methods=['PUT'])
+def put_file(bid, fn):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    fp = safe_path(bid, fn)
+    if not fp: return jsonify({'error': 'invalid path'}), 403
+    os.makedirs(os.path.dirname(fp), exist_ok=True)
+    with open(fp, 'w', encoding='utf-8') as f:
+        f.write((request.json or {}).get('content', ''))
+    return jsonify({'ok': True})
+
+@app.route('/api/bot/<bid>/file/<path:fn>', methods=['DELETE'])
+def del_file(bid, fn):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    fp = safe_path(bid, fn)
+    if not fp: return jsonify({'error': 'invalid path'}), 403
+    if os.path.exists(fp): os.remove(fp)
+    return jsonify({'ok': True})
+
+@app.route('/api/bot/<bid>/file/<path:fn>/download')
+def dl_file(bid, fn):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    fp = safe_path(bid, fn)
+    if not fp or not os.path.exists(fp): return jsonify({'error': 'not found'}), 404
+    return send_file(fp, as_attachment=True)
+
+@app.route('/api/bot/<bid>/upload', methods=['POST'])
+def upload_route(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    if 'file' not in request.files: return jsonify({'error': 'no file'}), 400
+    file = request.files['file']
+    if not file or not file.filename:
+        return jsonify({'error': 'no file selected'}), 400
+
+    bd = get_bot_dir(bid)
+    abs_bd = os.path.abspath(bd)
+
+    # SECURE FILENAME BUT PRESERVE FOLDERS
+    raw_path = request.form.get('path') or file.filename
+    # Normalize path and remove any leading slashes or .. segments
+    clean_path = os.path.normpath('/' + raw_path).lstrip('/')
+    
+    # Generate full destination path
+    sp = os.path.abspath(os.path.join(bd, clean_path))
+    
+    # Security check: ensure path is within bot directory
+    if not sp.startswith(abs_bd + os.sep) and sp != abs_bd:
+        return jsonify({'error': 'invalid path'}), 403
+
+    try:
+        os.makedirs(os.path.dirname(sp), exist_ok=True)
+        file.save(sp)
+    except Exception as e:
+        return jsonify({'error': f'Save failed: {e}'}), 500
+
+    if clean_path.lower().endswith('.zip'):
+        try:
+            with zipfile.ZipFile(sp, 'r') as zf:
+                for info in zf.infolist():
+                    if info.flag_bits & 0x1:
+                        emit_log(bid, '[Error] ZIP is password-protected', 'error')
+                        os.remove(sp)
+                        return jsonify({'error': 'password-protected zip'}), 400
+
+                for m in zf.namelist():
+                    mp = os.path.abspath(os.path.join(abs_bd, m))
+                    if mp.startswith(abs_bd + os.sep):
+                        parent = os.path.dirname(mp)
+                        os.makedirs(parent, exist_ok=True)
+                        if not m.endswith('/'):
+                            with zf.open(m) as source, open(mp, 'wb') as target:
+                                shutil.copyfileobj(source, target)
+            os.remove(sp)
+            emit_log(bid, f'[System] Extracted {clean_path}', 'system')
+        except Exception as e:
+            emit_log(bid, f'[Error] ZIP: {e}', 'error')
+            if os.path.exists(sp): os.remove(sp)
+            return jsonify({'error': 'Zip extraction failed'}), 500
+    else:
+        emit_log(bid, f'[System] Uploaded {clean_path}', 'system')
+        
+    return jsonify({'ok': True})
+
+# ── CONFIG / SETTINGS ──
+@app.route('/api/bot/<bid>/env')
+def get_env(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    return jsonify(load_config().get(bid, {}).get('env', {}))
+
+@app.route('/api/bot/<bid>/env', methods=['PUT'])
+def put_env(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    cfg = load_config()
+    cfg.setdefault(bid, {})['env'] = request.json or {}
+    save_config(cfg)
+    return jsonify({'ok': True})
+
+@app.route('/api/bot/<bid>/settings', methods=['PUT'])
+def put_settings(bid):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    data = request.json or {}
+    cfg = load_config()
+    bc = cfg.setdefault(bid, {})
+    bc['name'] = data.get('name', bc.get('name', bid))
+    bc['startup_file'] = data.get('startup_file', 'main.py')
+    bc['auto_restart'] = bool(data.get('auto_restart', False))
+    save_config(cfg)
+    if bid in bots:
+        bots[bid]['auto_restart'] = bc['auto_restart']
+    return jsonify(bc)
+
+@app.route('/api/resources')
+def resources():
+    cpu = psutil.cpu_percent(interval=0.3)
+    mem = psutil.virtual_memory()
+    disk = psutil.disk_usage('/')
+    def fmt(b): return f"{b//1024//1024}MB" if b < 1024**3 else f"{b/1024**3:.1f}GB"
+    return jsonify({
+        'cpu': round(cpu, 1),
+        'mem_used': fmt(mem.used), 'mem_total': fmt(mem.total), 'mem_pct': round(mem.percent, 1),
+        'disk_used': fmt(disk.used), 'disk_total': fmt(disk.total), 'disk_pct': round(disk.percent, 1),
+    })
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    print('\n' + '━' * 52)
+    print(f'  VORTEX HOSTING v11.1  ·  mode={_ASYNC_MODE}  ·  port={port}')
+    print('━' * 52 + '\n')
+
+    if _ASYNC_MODE == 'eventlet':
+        socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    else:
+        socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
