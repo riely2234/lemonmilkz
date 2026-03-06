@@ -25,5 +25,13 @@
     "auto_restart": false,
     "env": {},
     "owner": "riely"
+  },
+  "bot_1772766823726": {
+    "name": "g",
+    "startup_file": "main.py",
+    "auto_restart": false,
+    "env": {},
+    "owner": "jaes",
+    "shared_with": []
   }
 }

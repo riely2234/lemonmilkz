@@ -1256,6 +1256,8 @@ async function handleUpload(files) {
   for (const file of Array.from(files)) {
     const fd = new FormData();
     fd.append('file', file);
+    // Use webkitRelativePath for nested folders if available
+    fd.append('path', file.webkitRelativePath || file.name);
 
     // Build a progress row
     const wrap = document.createElement('div');
@@ -1710,22 +1712,27 @@ def upload_route(bid):
     bd = get_bot_dir(bid)
     abs_bd = os.path.abspath(bd)
 
-    # Strip to basename only — no path traversal via filename
-    fname = secure_filename(os.path.basename(file.filename))
-    if not fname:
-        return jsonify({'error': 'invalid filename'}), 400
+    # SECURE FILENAME BUT PRESERVE FOLDERS
+    raw_path = request.form.get('path') or file.filename
+    # Normalize path and remove any leading slashes or .. segments
+    clean_path = os.path.normpath('/' + raw_path).lstrip('/')
+    
+    # Generate full destination path
+    sp = os.path.abspath(os.path.join(bd, clean_path))
+    
+    # Security check: ensure path is within bot directory
+    if not sp.startswith(abs_bd + os.sep) and sp != abs_bd:
+        return jsonify({'error': 'invalid path'}), 403
 
-    sp = os.path.join(bd, fname)
     try:
+        os.makedirs(os.path.dirname(sp), exist_ok=True)
         file.save(sp)
     except Exception as e:
         return jsonify({'error': f'Save failed: {e}'}), 500
 
-    if fname.lower().endswith('.zip'):
-        extracted, blocked = 0, 0
+    if clean_path.lower().endswith('.zip'):
         try:
             with zipfile.ZipFile(sp, 'r') as zf:
-                # Reject password-protected zips
                 for info in zf.infolist():
                     if info.flag_bits & 0x1:
                         emit_log(bid, '[Error] ZIP is password-protected', 'error')
@@ -1738,31 +1745,18 @@ def upload_route(bid):
                         parent = os.path.dirname(mp)
                         os.makedirs(parent, exist_ok=True)
                         if not m.endswith('/'):
-                            with zf.open(m) as src, open(mp, 'wb') as dst:
-                                dst.write(src.read())
-                            extracted += 1
-                    else:
-                        log.warning(f'Blocked zip-slip attempt: {m}')
-                        blocked += 1
-
+                            with zf.open(m) as source, open(mp, 'wb') as target:
+                                shutil.copyfileobj(source, target)
             os.remove(sp)
-            msg = f'[System] Extracted {extracted} file(s) from {fname}'
-            if blocked:
-                msg += f' ({blocked} path(s) blocked)'
-            emit_log(bid, msg, 'success' if extracted else 'warn')
-
-        except zipfile.BadZipFile:
-            emit_log(bid, f'[Error] {fname} is not a valid ZIP file', 'error')
-            if os.path.exists(sp): os.remove(sp)
-            return jsonify({'error': 'bad zip file'}), 400
+            emit_log(bid, f'[System] Extracted {clean_path}', 'system')
         except Exception as e:
-            emit_log(bid, f'[Error] ZIP extract failed: {e}', 'error')
+            emit_log(bid, f'[Error] ZIP: {e}', 'error')
             if os.path.exists(sp): os.remove(sp)
-            return jsonify({'error': str(e)}), 500
+            return jsonify({'error': 'Zip extraction failed'}), 500
     else:
-        emit_log(bid, f'[System] Uploaded {fname}', 'system')
-
-    return jsonify({'ok': True, 'filename': fname})
+        emit_log(bid, f'[System] Uploaded {clean_path}', 'system')
+        
+    return jsonify({'ok': True})
 
 # ── CONFIG / SETTINGS ──
 @app.route('/api/bot/<bid>/env')
@@ -1806,7 +1800,7 @@ def resources():
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
+    port = int(os.environ.get('PORT', 5000))
     print('\n' + '━' * 52)
     print(f'  VORTEX HOSTING v11.1  ·  mode={_ASYNC_MODE}  ·  port={port}')
     print('━' * 52 + '\n')
