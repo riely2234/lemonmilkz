@@ -1,5 +1,5 @@
 """
-Vortex Hosting v11.4 — TypeScript / Rust / C# support
+Vortex Hosting v11.5 — Runtime Toggle + Fixed ZIP Extraction
 Install: pip install flask flask-socketio psutil werkzeug eventlet
 Run:     python main.py
 Supported runtimes: Python, Node.js, TypeScript (ts-node), Bash, Rust (cargo), C# (dotnet)
@@ -87,7 +87,6 @@ def get_bot_dir(bot_id):
 def safe_path(bot_id, fn):
     """Return absolute path only if it stays inside the bot directory."""
     bd = os.path.abspath(get_bot_dir(bot_id))
-    # Normalize without allowing .. to escape
     clean_fn = os.path.normpath('/' + fn.replace('\\', '/')).lstrip('/')
     if not clean_fn:
         return None
@@ -101,12 +100,10 @@ SUPPORTED_EXTENSIONS = ('.py', '.js', '.ts', '.sh', '.rs', '.cs')
 def safe_startup_file(startup_file: str) -> str | None:
     """Validate startup_file is a simple relative path with no traversal."""
     sf = startup_file.strip().replace('\\', '/')
-    # Reject anything with .., absolute paths, or shell metacharacters
     if not sf or '..' in sf or sf.startswith('/'):
         return None
     if re.search(r'[;&|`$<>!]', sf):
         return None
-    # Must end in a supported extension
     if not sf.endswith(SUPPORTED_EXTENSIONS):
         return None
     return sf
@@ -161,7 +158,6 @@ def start_bot(bot_id, startup_file=None):
     bot_cfg = cfg.get(bot_id, {})
     bot_dir = get_bot_dir(bot_id)
 
-    # Validate startup file
     raw_sf = startup_file or bot_cfg.get('startup_file', 'main.py')
     startup_file = safe_startup_file(raw_sf)
     if not startup_file:
@@ -179,7 +175,6 @@ def start_bot(bot_id, startup_file=None):
 
     ext = startup_file.rsplit('.', 1)[-1].lower()
 
-    # ── per-language dependency installation / build ──────────────────────────
     if ext == 'py':
         req = os.path.join(bot_dir, 'requirements.txt')
         if os.path.exists(req):
@@ -203,7 +198,6 @@ def start_bot(bot_id, startup_file=None):
             emit_log(bot_id, '[System] npm packages installed.', 'success')
 
     elif ext == 'ts':
-        # Install npm deps if package.json exists
         pkg = os.path.join(bot_dir, 'package.json')
         if os.path.exists(pkg):
             emit_log(bot_id, '[System] Running npm install…', 'system')
@@ -212,14 +206,12 @@ def start_bot(bot_id, startup_file=None):
                 emit_log(bot_id, f'[Error] npm install failed:\n{result.stderr}', 'error')
                 return
             emit_log(bot_id, '[System] npm packages installed.', 'success')
-        # Prefer ts-node if available, otherwise tsc + node
         ts_node = shutil.which('ts-node') or shutil.which('npx')
         if not ts_node:
             emit_log(bot_id, '[Error] ts-node / npx not found. Install Node.js and ts-node.', 'error')
             return
 
     elif ext == 'rs':
-        # Expect a Cargo.toml — build in release mode before running
         cargo_toml = os.path.join(bot_dir, 'Cargo.toml')
         if not os.path.exists(cargo_toml):
             emit_log(bot_id, '[Error] Cargo.toml not found in bot directory.', 'error')
@@ -239,7 +231,6 @@ def start_bot(bot_id, startup_file=None):
         emit_log(bot_id, '[System] Rust build successful.', 'success')
 
     elif ext == 'cs':
-        # Expect a .csproj — dotnet build before running
         csproj_files = [f for f in os.listdir(bot_dir) if f.endswith('.csproj')]
         if not csproj_files:
             emit_log(bot_id, '[Error] No .csproj file found in bot directory.', 'error')
@@ -258,7 +249,6 @@ def start_bot(bot_id, startup_file=None):
             return
         emit_log(bot_id, '[System] C# build successful.', 'success')
 
-    # ── build the run command ─────────────────────────────────────────────────
     if ext == 'py':
         cmd = [sys.executable, '-u', full_path]
     elif ext == 'js':
@@ -267,12 +257,10 @@ def start_bot(bot_id, startup_file=None):
         if shutil.which('ts-node'):
             cmd = ['ts-node', full_path]
         else:
-            # Fallback: npx ts-node
             cmd = ['npx', 'ts-node', full_path]
     elif ext == 'sh':
         cmd = ['bash', full_path]
     elif ext == 'rs':
-        # Find compiled binary — cargo names it after the package
         pkg_name = None
         try:
             with open(os.path.join(bot_dir, 'Cargo.toml')) as f:
@@ -288,7 +276,6 @@ def start_bot(bot_id, startup_file=None):
         elif pkg_name and os.path.isfile(os.path.join(bin_dir, pkg_name + '.exe')):
             cmd = [os.path.join(bin_dir, pkg_name + '.exe')]
         else:
-            # Try to find any executable in target/release
             candidates = [
                 f for f in os.listdir(bin_dir)
                 if os.path.isfile(os.path.join(bin_dir, f))
@@ -306,7 +293,6 @@ def start_bot(bot_id, startup_file=None):
         emit_log(bot_id, f'[Error] Unsupported extension: .{ext}', 'error')
         return
 
-    # For Rust, stdin needs binary mode; for others text=True is fine
     use_text = (ext != 'rs')
 
     env = os.environ.copy()
@@ -330,7 +316,6 @@ def start_bot(bot_id, startup_file=None):
         broadcast_status(bot_id, 'online', start_t)
 
         def _read():
-            # Rust binaries opened in binary mode; decode lines manually
             if use_text:
                 for line in iter(proc.stdout.readline, ''):
                     emit_log(bot_id, line.rstrip(), 'default')
@@ -344,7 +329,6 @@ def start_bot(bot_id, startup_file=None):
             if should_restart:
                 emit_log(bot_id, '[System] Auto-restart in 3s…', 'system')
                 time.sleep(3)
-                # Re-check flag hasn't been cleared since
                 if bots.get(bot_id, {}).get('auto_restart') and not is_running(bot_id):
                     start_bot(bot_id, startup_file)
 
@@ -354,7 +338,6 @@ def start_bot(bot_id, startup_file=None):
 
 def stop_bot(bot_id, disable_auto_restart=True):
     if bot_id in bots:
-        # Disable auto-restart before stopping to prevent immediate restart
         if disable_auto_restart:
             bots[bot_id]['auto_restart'] = False
         proc = bots[bot_id].get('process')
@@ -469,6 +452,18 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .bc-page{font-family:var(--font-disp);font-size:17px;font-weight:700;letter-spacing:3px;color:var(--text);text-transform:uppercase}
 .bc-bot{font-family:var(--font-mono);font-size:11px;color:var(--purple);background:var(--purple-dim);padding:4px 10px;border-radius:4px;border:1px solid rgba(160,32,240,0.25);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
 .topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+/* RUNTIME TOGGLE */
+.runtime-switcher{display:flex;align-items:center;background:rgba(0,0,0,0.5);border:1px solid var(--border-mid);border-radius:6px;padding:3px;gap:2px;flex-shrink:0}
+.runtime-btn{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:5px 10px;border-radius:4px;border:none;background:transparent;color:var(--text-3);cursor:pointer;transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.runtime-btn:hover{color:var(--text);background:rgba(255,255,255,0.07)}
+.runtime-btn.active.rt-py{background:rgba(0,255,127,0.12);color:var(--green);border:1px solid rgba(0,255,127,0.35);box-shadow:0 0 10px rgba(0,255,127,0.1)}
+.runtime-btn.active.rt-ts{background:rgba(49,120,198,0.18);color:#61B8FF;border:1px solid rgba(49,120,198,0.45);box-shadow:0 0 10px rgba(49,120,198,0.15)}
+.runtime-btn.active.rt-rs{background:rgba(247,76,0,0.14);color:#FF8050;border:1px solid rgba(247,76,0,0.4);box-shadow:0 0 10px rgba(247,76,0,0.12)}
+.runtime-btn.active.rt-cs{background:rgba(155,79,202,0.14);color:#C080FF;border:1px solid rgba(155,79,202,0.4);box-shadow:0 0 10px rgba(155,79,202,0.12)}
+.runtime-sep{width:1px;height:14px;background:var(--border-mid);flex-shrink:0}
+.runtime-icon{font-size:12px;line-height:1}
+
 .host-switcher{display:flex;align-items:center;background:rgba(0,0,0,0.5);border:1px solid var(--border-mid);border-radius:6px;padding:3px;gap:2px}
 .host-btn{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:5px 11px;border-radius:4px;border:none;background:transparent;color:var(--text-3);cursor:pointer;transition:all .2s;white-space:nowrap}
 .host-btn:hover{color:var(--text);background:rgba(255,255,255,0.07)}
@@ -503,7 +498,6 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .btn-sm{padding:6px 12px;font-size:10px;letter-spacing:1px}
 .btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
-/* icon-only action buttons in file table */
 .icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;border:1px solid var(--border-mid);background:rgba(255,255,255,0.04);color:var(--text-2);cursor:pointer;transition:all .15s;font-size:13px;flex-shrink:0;padding:0}
 .icon-btn:hover{border-color:var(--border-hi);color:var(--text);transform:translateY(-1px)}
 .icon-btn:active{transform:scale(0.9)}
@@ -597,12 +591,10 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .file-table colgroup col:nth-child(4){width:146px}
 .file-table colgroup col:nth-child(5){width:126px}
 
-/* name cell */
 .fn-cell{display:flex;align-items:center;gap:8px;min-width:0}
 .fn-icon{font-size:14px;opacity:.8;flex-shrink:0;line-height:1}
 .fn-link{flex:1;min-width:0;color:var(--cyan);cursor:pointer;transition:all .18s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
 .fn-link:hover{color:#fff;text-shadow:0 0 10px var(--cyan-glow)}
-/* inline rename */
 .fn-rename{display:none;flex:1;align-items:center;gap:5px;min-width:0}
 .fn-rename.on{display:flex}
 .fn-rename-input{flex:1;min-width:0;background:rgba(0,0,0,0.7);border:1px solid var(--border-hi);border-bottom:2px solid var(--amber);border-radius:5px;padding:4px 9px;font-family:var(--font-mono);font-size:12px;color:var(--amber);outline:none}
@@ -698,6 +690,8 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   .bc-bot{max-width:110px;font-size:10px}
   .topbar-right{display:flex;flex-wrap:nowrap;overflow-x:auto;width:100%;gap:6px;border-top:1px solid var(--border);padding-top:9px;-webkit-overflow-scrolling:touch}
   .topbar-right::-webkit-scrollbar{display:none}
+  .runtime-btn{padding:5px 7px;font-size:9px}
+  .runtime-btn .runtime-icon{display:none}
   .host-btn{padding:5px 8px;font-size:9px}
   .topbar-right .btn{white-space:nowrap;flex-shrink:0;padding:7px 11px;font-size:10px}
   .page{padding:10px}
@@ -753,7 +747,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
     <button class="sidebar-close-btn" onclick="toggleSidebar()">✕</button>
     <div class="logo">
       <div class="logo-wordmark">VORTEX</div>
-      <div class="logo-sub">Hosting Platform // v11.4</div>
+      <div class="logo-sub">Hosting Platform // v11.5</div>
       <div class="logo-line"></div>
     </div>
     <nav class="nav">
@@ -795,6 +789,25 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
         </div>
       </div>
       <div class="topbar-right">
+        <!-- RUNTIME TOGGLE -->
+        <div class="runtime-switcher" id="runtimeSwitcher">
+          <button class="runtime-btn rt-py active" onclick="setRuntime('py')" title="Python">
+            <span class="runtime-icon">🐍</span> PY
+          </button>
+          <div class="runtime-sep"></div>
+          <button class="runtime-btn rt-ts" onclick="setRuntime('ts')" title="TypeScript">
+            <span class="runtime-icon">⟨⟩</span> TS
+          </button>
+          <div class="runtime-sep"></div>
+          <button class="runtime-btn rt-rs" onclick="setRuntime('rs')" title="Rust">
+            <span class="runtime-icon">⚙</span> RS
+          </button>
+          <div class="runtime-sep"></div>
+          <button class="runtime-btn rt-cs" onclick="setRuntime('cs')" title="C#">
+            <span class="runtime-icon">◆</span> C#
+          </button>
+        </div>
+        <div class="host-sep" style="height:20px;margin:0 2px"></div>
         <div class="host-switcher" id="hostSwitcher"></div>
         <div class="host-sep" style="height:20px;margin:0 2px"></div>
         <div class="status-badge offline" id="statusTag">
@@ -837,7 +850,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
           <span class="panel-tag">Operations</span>
         </div>
         <div class="panel-body">
-          <div style="max-width:360px;margin-bottom:18px">
+          <div style="max-width:420px;margin-bottom:18px">
             <div class="form-group" style="margin:0">
               <label class="form-label">Startup File</label>
               <input class="form-input" id="sfInput" value="main.py" placeholder="main.py / index.ts / main.rs / Program.cs">
@@ -920,7 +933,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
           <div class="drop-zone" id="dropZone">
             <span class="drop-icon">⇪</span>
             <div class="drop-title">DROP FILES HERE</div>
-            <div class="drop-sub">ZIP auto-extracted · folder structure preserved</div>
+            <div class="drop-sub">ZIP auto-extracted · full folder structure preserved</div>
             <div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap;position:relative;z-index:5">
               <button class="btn btn-cyan btn-sm" onclick="event.stopPropagation();document.getElementById('fileUploadInput').click()">⇪ Upload Files</button>
               <button class="btn btn-purple btn-sm" onclick="event.stopPropagation();document.getElementById('folderUploadInput').click()">📁 Upload Folder</button>
@@ -1077,7 +1090,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
       <label class="form-label">Display Label</label>
       <input class="form-input" id="ahLabel" placeholder="Production" onkeydown="if(event.key==='Enter')submitAddHost()">
     </div>
-    <p style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);margin-bottom:4px">Right-click a host button to remove it. The remote server must be reachable from your browser.</p>
+    <p style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);margin-bottom:4px">Right-click a host button to remove it.</p>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('mAddHost')">Cancel</button>
       <button class="btn btn-cyan" onclick="submitAddHost()">Add Host</button>
@@ -1086,29 +1099,61 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 </div>
 
 <script>
+/* ══════════════════════════════════════════════════════
+   RUNTIME TOGGLE
+══════════════════════════════════════════════════════ */
+const RUNTIMES = {
+  py: { label: 'Python',     ext: 'py', defaultFile: 'main.py',     icon: '🐍' },
+  ts: { label: 'TypeScript', ext: 'ts', defaultFile: 'index.ts',    icon: '⟨⟩' },
+  rs: { label: 'Rust',       ext: 'rs', defaultFile: 'src/main.rs', icon: '⚙'  },
+  cs: { label: 'C#',         ext: 'cs', defaultFile: 'Program.cs',  icon: '◆'  },
+};
+let currentRuntime = 'py';
+
+function setRuntime(rt) {
+  if (!RUNTIMES[rt]) return;
+  currentRuntime = rt;
+  // Update toggle button styles
+  document.querySelectorAll('.runtime-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.runtime-btn.rt-${rt}`);
+  if (btn) btn.classList.add('active');
+  // Auto-fill startup file inputs with the default for this runtime
+  const def = RUNTIMES[rt].defaultFile;
+  const sfInput  = document.getElementById('sfInput');
+  const mFile    = document.getElementById('mFile');
+  const stStartup= document.getElementById('stStartup');
+  if (sfInput)   sfInput.value   = def;
+  if (mFile)     mFile.value     = def;
+  if (stStartup) stStartup.value = def;
+  toast(`Runtime: ${RUNTIMES[rt].label} · ${def}`, 'info');
+}
+
+// Detect runtime from a startup file path
+function detectRuntime(sf) {
+  if (!sf) return;
+  const ext = sf.split('.').pop().toLowerCase();
+  const map = { py: 'py', ts: 'ts', js: 'ts', rs: 'rs', cs: 'cs', sh: 'py' };
+  const rt = map[ext];
+  if (rt && rt !== currentRuntime) setRuntime(rt);
+}
+
 /* ── globals ── */
-/* ── host switcher ── */
-const HOSTS = [];  // populated from /api/hosts
-let currentHostUrl = '';  // empty = this server
+const HOSTS = [];
+let currentHostUrl = '';
 
 function addHost(url, label) {
-  // Normalise: strip trailing slash
   url = url.replace(/\/+$/, '');
   if (HOSTS.find(h => h.url === url)) { toast('Host already added', 'info'); return; }
   HOSTS.push({ url, label: label || url });
-  saveHosts();
-  renderHostSwitcher();
+  saveHosts(); renderHostSwitcher();
 }
 function removeHost(url) {
   const idx = HOSTS.findIndex(h => h.url === url);
   if (idx !== -1) HOSTS.splice(idx, 1);
   if (currentHostUrl === url) switchHost('');
-  saveHosts();
-  renderHostSwitcher();
+  saveHosts(); renderHostSwitcher();
 }
-function saveHosts() {
-  try { localStorage.setItem('vortex_hosts', JSON.stringify(HOSTS)); } catch(e) {}
-}
+function saveHosts() { try { localStorage.setItem('vortex_hosts', JSON.stringify(HOSTS)); } catch(e) {} }
 function loadHostsFromStorage() {
   try {
     const raw = localStorage.getItem('vortex_hosts');
@@ -1116,43 +1161,29 @@ function loadHostsFromStorage() {
   } catch(e) {}
 }
 function renderHostSwitcher() {
-  const sw = document.getElementById('hostSwitcher');
-  if (!sw) return;
+  const sw = document.getElementById('hostSwitcher'); if (!sw) return;
   sw.innerHTML = '';
-  // "This server" button always first
   const local = document.createElement('button');
   local.className = 'host-btn' + (currentHostUrl === '' ? ' active' : '');
-  local.textContent = 'LOCAL';
-  local.title = 'This server';
-  local.onclick = () => switchHost('');
-  sw.appendChild(local);
+  local.textContent = 'LOCAL'; local.title = 'This server';
+  local.onclick = () => switchHost(''); sw.appendChild(local);
   HOSTS.forEach(h => {
-    if (sw.children.length > 1) {
-      const sep = document.createElement('div'); sep.className = 'host-sep'; sw.appendChild(sep);
-    }
+    if (sw.children.length > 1) { const sep = document.createElement('div'); sep.className = 'host-sep'; sw.appendChild(sep); }
     const btn = document.createElement('button');
     btn.className = 'host-btn' + (currentHostUrl === h.url ? ' active' : '');
-    btn.textContent = h.label;
-    btn.title = h.url;
+    btn.textContent = h.label; btn.title = h.url;
     btn.onclick = () => switchHost(h.url);
-    // Long-press / right-click to remove
     btn.oncontextmenu = e => { e.preventDefault(); if (confirm('Remove host "' + h.label + '"?')) removeHost(h.url); };
     sw.appendChild(btn);
   });
-  // Add-host "+" button
   const sep2 = document.createElement('div'); sep2.className = 'host-sep'; sw.appendChild(sep2);
   const addBtn = document.createElement('button');
   addBtn.className = 'host-btn'; addBtn.textContent = '+'; addBtn.title = 'Add remote host';
-  addBtn.onclick = () => openAddHostModal();
-  sw.appendChild(addBtn);
+  addBtn.onclick = () => openAddHostModal(); sw.appendChild(addBtn);
 }
 function switchHost(url) {
-  currentHostUrl = url;
-  renderHostSwitcher();
-  // Reload bots from the new host
-  curBot = null;
-  botRegistry = {};
-  startTimes = {};
+  currentHostUrl = url; renderHostSwitcher();
+  curBot = null; botRegistry = {}; startTimes = {};
   document.getElementById('tbBot').textContent = '— SELECT INSTANCE —';
   ['mainTerm','miniTerm'].forEach(i => document.getElementById(i).innerHTML = '');
   applyStatus('offline');
@@ -1161,7 +1192,6 @@ function switchHost(url) {
   loadBots();
   toast(url ? 'Switched to ' + (HOSTS.find(h=>h.url===url)?.label||url) : 'Switched to local', 'info');
 }
-// Override apiFetch to prefix remote URL when a host is selected
 const _origFetch = window.fetch.bind(window);
 async function apiFetch(url, opts = {}) {
   const fullUrl = currentHostUrl ? currentHostUrl + url : url;
@@ -1175,7 +1205,6 @@ async function apiFetch(url, opts = {}) {
 const sock = io({ transports: ['websocket', 'polling'] });
 let curBot = null, botRegistry = {}, startTimes = {}, uptimeIv = null, resIv = null;
 let currentUser = '', authMode = 'login';
-// Map rid -> original full path, so rename works correctly for nested files
 const _renameMap = {};
 
 setInterval(() => document.getElementById('clock').textContent = new Date().toTimeString().slice(0, 8), 1000);
@@ -1192,25 +1221,21 @@ sock.on('status_update', ({ bot_id, status, start_time }) => {
 
 /* ── sidebar ── */
 function toggleSidebar() {
-  const sb = document.getElementById('sidebar');
-  const o  = document.getElementById('sidebarOverlay');
+  const sb = document.getElementById('sidebar'), o = document.getElementById('sidebarOverlay');
   const open = sb.classList.toggle('open');
   if (open) { o.style.display = 'block'; void o.offsetWidth; o.classList.add('open'); }
   else { o.classList.remove('open'); setTimeout(() => o.style.display = 'none', 300); }
 }
 
 /* ── navigation ── */
-const PAGE_NAMES = { dashboard: 'DASHBOARD', console: 'CONSOLE', files: 'FILE MANAGER', env: 'ENVIRONMENT', settings: 'SETTINGS', resources: 'RESOURCES' };
+const PAGE_NAMES = { dashboard:'DASHBOARD', console:'CONSOLE', files:'FILE MANAGER', env:'ENVIRONMENT', settings:'SETTINGS', resources:'RESOURCES' };
 function navTo(name, el) {
   document.querySelectorAll('.sidebar .nav-item').forEach(n => n.classList.remove('active'));
-  const d = document.querySelector(`.sidebar .nav-item[data-page="${name}"]`);
-  if (d) d.classList.add('active');
+  const d = document.querySelector(`.sidebar .nav-item[data-page="${name}"]`); if (d) d.classList.add('active');
   document.querySelectorAll('.mobile-bottom-nav .m-nav-item').forEach(n => n.classList.remove('active'));
-  const m = document.querySelector(`.mobile-bottom-nav .m-nav-item[data-page="${name}"]`);
-  if (m) m.classList.add('active');
+  const m = document.querySelector(`.mobile-bottom-nav .m-nav-item[data-page="${name}"]`); if (m) m.classList.add('active');
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const p = document.getElementById('page-' + name);
-  if (p) p.classList.add('active');
+  const p = document.getElementById('page-' + name); if (p) p.classList.add('active');
   document.getElementById('tbPage').textContent = PAGE_NAMES[name] || name.toUpperCase();
   if (name === 'files') loadFiles();
   if (name === 'env') loadEnv();
@@ -1218,14 +1243,12 @@ function navTo(name, el) {
   if (name === 'resources') startRes(); else stopRes();
 }
 
-
 /* ── auth ── */
 async function checkAuth() {
   const r = await fetch('/api/me');
   if (r.status === 401) { document.getElementById('loginOverlay').style.display = 'flex'; return false; }
   const d = await r.json(); currentUser = d.username;
-  document.getElementById('loginOverlay').style.display = 'none';
-  return true;
+  document.getElementById('loginOverlay').style.display = 'none'; return true;
 }
 function switchAuthMode(mode) {
   authMode = mode;
@@ -1234,23 +1257,20 @@ function switchAuthMode(mode) {
   document.getElementById('authBtn').textContent = mode === 'login' ? 'AUTHENTICATE' : 'CREATE ACCOUNT';
 }
 async function submitAuth() {
-  const u = document.getElementById('authUsername').value.trim();
-  const p = document.getElementById('authPassword').value;
+  const u = document.getElementById('authUsername').value.trim(), p = document.getElementById('authPassword').value;
   if (!u || !p) { toast('Credentials required', 'error'); return; }
   const ep = authMode === 'login' ? '/api/login' : '/api/register';
-  const r = await fetch(ep, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+  const r = await fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) });
   const res = await r.json();
   if (r.ok) location.reload(); else toast(res.error || 'Authentication failed', 'error');
 }
-async function logout() { await fetch('/api/logout', { method: 'POST' }); location.reload(); }
+async function logout() { await fetch('/api/logout', { method:'POST' }); location.reload(); }
 
 /* ── bot list ── */
 async function loadBots() {
   const r = await apiFetch('/api/bots'); if (!r) return;
   botRegistry = await r.json();
-  Object.entries(botRegistry).forEach(([id, b]) => {
-    if (b.status === 'online' && b.start_time) startTimes[id] = b.start_time * 1000;
-  });
+  Object.entries(botRegistry).forEach(([id, b]) => { if (b.status === 'online' && b.start_time) startTimes[id] = b.start_time * 1000; });
   renderBotList();
   document.getElementById('botCount').textContent = Object.keys(botRegistry).length;
   if (Object.keys(botRegistry).length > 0 && !curBot) selectBot(Object.keys(botRegistry)[0]);
@@ -1259,8 +1279,7 @@ function renderBotList() {
   const el = document.getElementById('botList'); el.innerHTML = '';
   const entries = Object.entries(botRegistry);
   if (!entries.length) {
-    el.innerHTML = '<div style="padding:18px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:10px;letter-spacing:2px">NO INSTANCES</div>';
-    return;
+    el.innerHTML = '<div style="padding:18px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:10px;letter-spacing:2px">NO INSTANCES</div>'; return;
   }
   entries.forEach(([id, b]) => {
     const d = document.createElement('div');
@@ -1275,14 +1294,16 @@ function selectBot(id) {
   curBot = id;
   const b = botRegistry[id];
   document.getElementById('tbBot').textContent = b?.name || id;
-  document.getElementById('sfInput').value = b?.startup_file || 'main.py';
+  const sf = b?.startup_file || 'main.py';
+  document.getElementById('sfInput').value = sf;
   document.getElementById('termTitle').textContent = (b?.name || id).toUpperCase() + ' // STDOUT';
-  ['mainTerm', 'miniTerm'].forEach(i => document.getElementById(i).innerHTML = '');
+  ['mainTerm','miniTerm'].forEach(i => document.getElementById(i).innerHTML = '');
   applyStatus(b?.status || 'offline');
   renderBotList();
   loadBotLogs();
   startUptime();
-  // Refresh active sub-pages
+  // Auto-detect runtime from startup file
+  detectRuntime(sf);
   const activePage = document.querySelector('.page.active');
   if (activePage) {
     const pg = activePage.id.replace('page-', '');
@@ -1304,7 +1325,7 @@ async function loadBotLogs() {
   if (!curBot) return;
   const r = await apiFetch(`/api/bot/${curBot}/logs`); if (!r) return;
   const logs = await r.json();
-  ['mainTerm', 'miniTerm'].forEach(id => document.getElementById(id).innerHTML = '');
+  ['mainTerm','miniTerm'].forEach(id => document.getElementById(id).innerHTML = '');
   logs.forEach(({ msg, level, time: ts }) => appendLog(msg, level, ts));
 }
 function applyStatus(s) {
@@ -1318,71 +1339,70 @@ function applyStatus(s) {
 }
 
 /* ── modals ── */
-function openCreateModal() { document.getElementById('mCreate').classList.add('open'); setTimeout(() => document.getElementById('mName').focus(), 80); }
+function openCreateModal() {
+  // Pre-fill modal with current runtime defaults
+  document.getElementById('mFile').value = RUNTIMES[currentRuntime]?.defaultFile || 'main.py';
+  document.getElementById('mCreate').classList.add('open');
+  setTimeout(() => document.getElementById('mName').focus(), 80);
+}
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.modal-veil').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
 
 /* ── bot actions ── */
 async function createBot() {
   const n = document.getElementById('mName').value.trim();
-  const f = document.getElementById('mFile').value.trim() || 'main.py';
+  const f = document.getElementById('mFile').value.trim() || RUNTIMES[currentRuntime]?.defaultFile || 'main.py';
   if (!n) { toast('Instance name required', 'error'); return; }
-  const r = await apiFetch('/api/bots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n, startup_file: f }) });
+  const r = await apiFetch('/api/bots', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n,startup_file:f}) });
   if (!r) return;
   if (!r.ok) { const e = await r.json(); toast(e.error || 'Failed', 'error'); return; }
   const b = await r.json();
-  botRegistry[b.id] = b;
-  closeModal('mCreate');
+  botRegistry[b.id] = b; closeModal('mCreate');
   document.getElementById('mName').value = '';
   renderBotList();
   document.getElementById('botCount').textContent = Object.keys(botRegistry).length;
-  selectBot(b.id);
-  toast('Instance deployed', 'success');
+  selectBot(b.id); toast('Instance deployed', 'success');
 }
 async function startBot() {
   if (!curBot) { toast('Select an instance first', 'error'); return; }
-  const sf = document.getElementById('sfInput').value.trim() || 'main.py';
-  const r = await apiFetch(`/api/bot/${curBot}/start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startup_file: sf }) });
+  const sf = document.getElementById('sfInput').value.trim() || RUNTIMES[currentRuntime]?.defaultFile || 'main.py';
+  const r = await apiFetch(`/api/bot/${curBot}/start`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({startup_file:sf}) });
   if (r && !r.ok) { const e = await r.json(); toast(e.error || 'Start failed', 'error'); return; }
   toast('Booting…', 'info');
 }
 async function stopBot() {
   if (!curBot) { toast('Select an instance first', 'error'); return; }
-  await apiFetch(`/api/bot/${curBot}/stop`, { method: 'POST' });
-  toast('Stopped', 'success');
+  await apiFetch(`/api/bot/${curBot}/stop`, { method:'POST' }); toast('Stopped', 'success');
 }
 async function restartBot() {
   if (!curBot) { toast('Select an instance first', 'error'); return; }
-  // Wait for stop to complete before starting
-  const r = await apiFetch(`/api/bot/${curBot}/stop`, { method: 'POST' });
+  const r = await apiFetch(`/api/bot/${curBot}/stop`, { method:'POST' });
   if (r) { toast('Rebooting…', 'info'); setTimeout(startBot, 1200); }
 }
 async function killBot() {
   if (!curBot) return;
-  await apiFetch(`/api/bot/${curBot}/kill`, { method: 'POST' });
-  toast('Force killed', 'error');
+  await apiFetch(`/api/bot/${curBot}/kill`, { method:'POST' }); toast('Force killed', 'error');
 }
 async function deleteBot() {
   if (!curBot || !confirm('Permanently destroy this instance and all its files?')) return;
-  const r = await apiFetch(`/api/bot/${curBot}`, { method: 'DELETE' });
+  const r = await apiFetch(`/api/bot/${curBot}`, { method:'DELETE' });
   if (!r || !r.ok) { toast('Delete failed', 'error'); return; }
   delete botRegistry[curBot]; curBot = null;
   document.getElementById('tbBot').textContent = '— SELECT INSTANCE —';
-  ['mainTerm', 'miniTerm'].forEach(i => document.getElementById(i).innerHTML = '');
-  applyStatus('offline');
-  renderBotList();
+  ['mainTerm','miniTerm'].forEach(i => document.getElementById(i).innerHTML = '');
+  applyStatus('offline'); renderBotList();
   document.getElementById('botCount').textContent = Object.keys(botRegistry).length;
   toast('Instance destroyed', 'error');
 }
 
 /* ── console ── */
 function appendLog(msg, level, ts) {
-  const tagMap = { system: 'sys', error: 'err', success: 'ok', warn: 'warn', default: 'out' };
+  const tagMap = { system:'sys', error:'err', success:'ok', warn:'warn', default:'out' };
   const tag = tagMap[level] || 'out', t = ts || new Date().toTimeString().slice(0, 8);
   const row = `<div class="log-row"><span class="log-ts">${escH(t)}</span><span class="log-tag ${tag}">${tag}</span><span class="log-msg ${tag}">${escH(msg)}</span></div>`;
-  ['mainTerm', 'miniTerm'].forEach(id => { const el = document.getElementById(id); if (el) { el.innerHTML += row; el.scrollTop = el.scrollHeight; } });
+  ['mainTerm','miniTerm'].forEach(id => { const el = document.getElementById(id); if (el) { el.innerHTML += row; el.scrollTop = el.scrollHeight; } });
 }
-function clearConsole() { ['mainTerm', 'miniTerm'].forEach(id => document.getElementById(id).innerHTML = ''); toast('Console cleared', 'info'); }
+function clearConsole() { ['mainTerm','miniTerm'].forEach(id => document.getElementById(id).innerHTML = ''); toast('Console cleared', 'info'); }
 function exportLogs() {
   const lines = Array.from(document.getElementById('mainTerm').querySelectorAll('.log-row')).map(r => r.textContent.trim()).join('\n');
   const a = document.createElement('a'); a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(lines);
@@ -1391,188 +1411,99 @@ function exportLogs() {
 async function sendInput() {
   if (!curBot) return;
   let v = document.getElementById('termIn').value; document.getElementById('termIn').value = '';
-  // Strip control characters except newline/tab
   v = v.replace(/[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]/g, '');
   if (!v.trim()) return;
-  await apiFetch(`/api/bot/${curBot}/input`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input: v + '\n' }) });
+  await apiFetch(`/api/bot/${curBot}/input`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({input:v+'\n'}) });
 }
 
 /* ══════════════════════════════════════════════════════
-   FILE MANAGER  — fully rewritten, no XSS, rename fixed
+   FILE MANAGER
 ══════════════════════════════════════════════════════ */
-const EXT_COLORS = { py: '#00FF7F', js: '#FFB800', json: '#00E5FF', md: '#A020F0', txt: '#5A7A9A', sh: '#00E5FF', zip: '#FF2055', env: '#FFB800', ts: '#3178C6', html: '#FF7043', css: '#00BCD4', jsx: '#61DAFB', tsx: '#61DAFB', rs: '#F74C00', cs: '#9B4FCA', toml: '#FFB800', csproj: '#9B4FCA', lock: '#5A7A9A', cargo: '#F74C00' };
-const EXT_ICONS  = { py: '🐍', js: '⚡', jsx: '⚛', tsx: '⚛', ts: '⟨⟩', json: '{}', txt: '≡', md: '#', zip: '⊞', env: '⊛', sh: '$', html: '<>', css: '◐', rs: '⚙', cs: '◆', toml: '⚙', csproj: '◆' };
+const EXT_COLORS = { py:'#00FF7F', js:'#FFB800', json:'#00E5FF', md:'#A020F0', txt:'#5A7A9A', sh:'#00E5FF', zip:'#FF2055', env:'#FFB800', ts:'#3178C6', html:'#FF7043', css:'#00BCD4', jsx:'#61DAFB', tsx:'#61DAFB', rs:'#F74C00', cs:'#9B4FCA', toml:'#FFB800', csproj:'#9B4FCA', lock:'#5A7A9A', cargo:'#F74C00' };
+const EXT_ICONS  = { py:'🐍', js:'⚡', jsx:'⚛', tsx:'⚛', ts:'⟨⟩', json:'{}', txt:'≡', md:'#', zip:'⊞', env:'⊛', sh:'$', html:'<>', css:'◐', rs:'⚙', cs:'◆', toml:'⚙', csproj:'◆' };
 
 async function loadFiles() {
   const tb = document.getElementById('fileList');
-  if (!curBot) {
-    tb.innerHTML = `<tr><td colspan="5" style="padding:36px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px">NO INSTANCE TARGETED</td></tr>`;
-    return;
-  }
+  if (!curBot) { tb.innerHTML = `<tr><td colspan="5" style="padding:36px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px">NO INSTANCE TARGETED</td></tr>`; return; }
   tb.innerHTML = `<tr><td colspan="5" style="padding:36px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px">Loading…</td></tr>`;
   const r = await apiFetch(`/api/bot/${curBot}/files`); if (!r) return;
   const files = await r.json();
-  if (!files.length) {
-    tb.innerHTML = `<tr><td colspan="5" style="padding:36px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px">DIRECTORY EMPTY</td></tr>`;
-    return;
-  }
-  // Clear rename map and rebuild
+  if (!files.length) { tb.innerHTML = `<tr><td colspan="5" style="padding:36px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px">DIRECTORY EMPTY</td></tr>`; return; }
   for (const k in _renameMap) delete _renameMap[k];
-
   tb.innerHTML = '';
   files.forEach(f => {
     const ext = (f.name.split('.').pop() || '').toLowerCase();
-    const c   = EXT_COLORS[ext] || '#5A7A9A';
-    const ic  = EXT_ICONS[ext]  || '□';
+    const c = EXT_COLORS[ext] || '#5A7A9A', ic = EXT_ICONS[ext] || '□';
     const rid = 'r' + Math.random().toString(36).slice(2, 10);
-    // Store full path in map — avoids any inline JS string injection
     _renameMap[rid] = f.name;
-
     const tr = document.createElement('tr');
-
-    // --- name cell (built in JS, no inline event strings with user data) ---
+    // name cell
     const tdName = document.createElement('td');
     const fnCell = document.createElement('div'); fnCell.className = 'fn-cell';
-
     const fnIcon = document.createElement('span'); fnIcon.className = 'fn-icon'; fnIcon.textContent = ic;
-
     const fnLink = document.createElement('span');
     fnLink.className = 'fn-link'; fnLink.id = 'fnl_' + rid;
-    // Show only the base filename; full relative path in tooltip
-    const displayName = f.name.split('/').pop();
-    const dirPath = f.name.includes('/') ? f.name.split('/').slice(0, -1).join('/') : '';
-    fnLink.title = f.name;
-    fnLink.textContent = displayName;
-    fnLink.onclick = () => editFile(f.name);
-
-    // rename area
-    const fnRename = document.createElement('div');
-    fnRename.className = 'fn-rename'; fnRename.id = 'fnr_' + rid;
-
-    const fnInput = document.createElement('input');
-    fnInput.className = 'fn-rename-input'; fnInput.id = 'fni_' + rid;
-    // Pre-fill with just the base filename (last component)
-    fnInput.value = displayName;
-    fnInput.onkeydown = e => {
-      if (e.key === 'Enter') doRename(rid);
-      if (e.key === 'Escape') cancelRename(rid);
-    };
-
-    const fnOk = document.createElement('button');
-    fnOk.className = 'fn-rename-ok'; fnOk.textContent = '✓';
-    fnOk.onclick = () => doRename(rid);
-
-    const fnCancel = document.createElement('button');
-    fnCancel.className = 'fn-rename-cancel'; fnCancel.textContent = '✕';
-    fnCancel.onclick = () => cancelRename(rid);
-
+    const displayName = f.name.split('/').pop(), dirPath = f.name.includes('/') ? f.name.split('/').slice(0,-1).join('/') : '';
+    fnLink.title = f.name; fnLink.textContent = displayName; fnLink.onclick = () => editFile(f.name);
+    const fnRename = document.createElement('div'); fnRename.className = 'fn-rename'; fnRename.id = 'fnr_' + rid;
+    const fnInput = document.createElement('input'); fnInput.className = 'fn-rename-input'; fnInput.id = 'fni_' + rid; fnInput.value = displayName;
+    fnInput.onkeydown = e => { if (e.key === 'Enter') doRename(rid); if (e.key === 'Escape') cancelRename(rid); };
+    const fnOk = document.createElement('button'); fnOk.className = 'fn-rename-ok'; fnOk.textContent = '✓'; fnOk.onclick = () => doRename(rid);
+    const fnCancel = document.createElement('button'); fnCancel.className = 'fn-rename-cancel'; fnCancel.textContent = '✕'; fnCancel.onclick = () => cancelRename(rid);
     fnRename.append(fnInput, fnOk, fnCancel);
     if (dirPath) {
       const dirSpan = document.createElement('span');
       dirSpan.style.cssText = 'color:var(--text-3);font-size:10px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px';
-      dirSpan.title = dirPath;
-      dirSpan.textContent = dirPath + '/';
+      dirSpan.title = dirPath; dirSpan.textContent = dirPath + '/';
       fnCell.append(fnIcon, dirSpan, fnLink, fnRename);
-    } else {
-      fnCell.append(fnIcon, fnLink, fnRename);
-    }
+    } else { fnCell.append(fnIcon, fnLink, fnRename); }
     tdName.appendChild(fnCell);
-
-    // --- type cell ---
+    // type cell
     const tdType = document.createElement('td');
-    const badge = document.createElement('span');
-    badge.className = 'file-ext-badge';
-    badge.style.cssText = `color:${c};border-color:${c}33`;
-    badge.textContent = '.' + (ext || '—');
-    tdType.appendChild(badge);
-
-    // --- size cell ---
-    const tdSize = document.createElement('td');
-    tdSize.style.color = 'var(--text-2)';
-    tdSize.textContent = f.size;
-
-    // --- modified cell ---
-    const tdMod = document.createElement('td');
-    tdMod.style.cssText = 'color:var(--text-3);font-size:11px';
-    tdMod.textContent = f.modified;
-
-    // --- actions cell ---
+    const badge = document.createElement('span'); badge.className = 'file-ext-badge';
+    badge.style.cssText = `color:${c};border-color:${c}33`; badge.textContent = '.' + (ext || '—'); tdType.appendChild(badge);
+    // size cell
+    const tdSize = document.createElement('td'); tdSize.style.color = 'var(--text-2)'; tdSize.textContent = f.size;
+    // modified cell
+    const tdMod = document.createElement('td'); tdMod.style.cssText = 'color:var(--text-3);font-size:11px'; tdMod.textContent = f.modified;
+    // actions cell
     const tdAct = document.createElement('td');
     const actDiv = document.createElement('div'); actDiv.className = 'file-actions';
-
-    const btnEdit = document.createElement('button');
-    btnEdit.className = 'icon-btn ib-cyan'; btnEdit.title = 'Edit'; btnEdit.textContent = '✏';
-    btnEdit.onclick = () => editFile(f.name);
-
-    const btnRename = document.createElement('button');
-    btnRename.className = 'icon-btn ib-amber'; btnRename.id = 'rnb_' + rid;
-    btnRename.title = 'Rename'; btnRename.textContent = '⟳';
-    btnRename.onclick = () => toggleRename(rid);
-
-    const btnDl = document.createElement('button');
-    btnDl.className = 'icon-btn'; btnDl.title = 'Download'; btnDl.textContent = '↓';
-    btnDl.onclick = () => dlFile(f.name);
-
-    const btnDel = document.createElement('button');
-    btnDel.className = 'icon-btn ib-red'; btnDel.title = 'Delete'; btnDel.textContent = '✕';
-    btnDel.onclick = () => delFile(f.name);
-
-    actDiv.append(btnEdit, btnRename, btnDl, btnDel);
-    tdAct.appendChild(actDiv);
-
-    tr.append(tdName, tdType, tdSize, tdMod, tdAct);
-    tb.appendChild(tr);
+    const btnEdit = document.createElement('button'); btnEdit.className = 'icon-btn ib-cyan'; btnEdit.title = 'Edit'; btnEdit.textContent = '✏'; btnEdit.onclick = () => editFile(f.name);
+    const btnRename = document.createElement('button'); btnRename.className = 'icon-btn ib-amber'; btnRename.id = 'rnb_' + rid; btnRename.title = 'Rename'; btnRename.textContent = '⟳'; btnRename.onclick = () => toggleRename(rid);
+    const btnDl = document.createElement('button'); btnDl.className = 'icon-btn'; btnDl.title = 'Download'; btnDl.textContent = '↓'; btnDl.onclick = () => dlFile(f.name);
+    const btnDel = document.createElement('button'); btnDel.className = 'icon-btn ib-red'; btnDel.title = 'Delete'; btnDel.textContent = '✕'; btnDel.onclick = () => delFile(f.name);
+    actDiv.append(btnEdit, btnRename, btnDl, btnDel); tdAct.appendChild(actDiv);
+    tr.append(tdName, tdType, tdSize, tdMod, tdAct); tb.appendChild(tr);
   });
 }
 
 function toggleRename(rid) {
-  const lnk = document.getElementById('fnl_' + rid);
-  const rnw = document.getElementById('fnr_' + rid);
-  const btn = document.getElementById('rnb_' + rid);
+  const lnk = document.getElementById('fnl_' + rid), rnw = document.getElementById('fnr_' + rid), btn = document.getElementById('rnb_' + rid);
   if (!lnk || !rnw || !btn) return;
-  if (rnw.classList.contains('on')) {
-    cancelRename(rid);
-  } else {
-    lnk.style.display = 'none';
-    rnw.classList.add('on');
-    btn.textContent = '✕'; btn.title = 'Cancel';
+  if (rnw.classList.contains('on')) { cancelRename(rid); } else {
+    lnk.style.display = 'none'; rnw.classList.add('on'); btn.textContent = '✕'; btn.title = 'Cancel';
     const inp = document.getElementById('fni_' + rid);
     if (inp) { inp.focus(); const v = inp.value, dot = v.lastIndexOf('.'); inp.setSelectionRange(0, dot > 0 ? dot : v.length); }
   }
 }
 function cancelRename(rid) {
-  const lnk = document.getElementById('fnl_' + rid);
-  const rnw = document.getElementById('fnr_' + rid);
-  const btn = document.getElementById('rnb_' + rid);
-  if (lnk) lnk.style.display = '';
-  if (rnw) rnw.classList.remove('on');
-  if (btn) { btn.textContent = '⟳'; btn.title = 'Rename'; }
+  const lnk = document.getElementById('fnl_' + rid), rnw = document.getElementById('fnr_' + rid), btn = document.getElementById('rnb_' + rid);
+  if (lnk) lnk.style.display = ''; if (rnw) rnw.classList.remove('on'); if (btn) { btn.textContent = '⟳'; btn.title = 'Rename'; }
 }
 async function doRename(rid) {
   const oldName = _renameMap[rid];
   if (!oldName) { toast('Rename context lost — please refresh', 'error'); return; }
-  const inp = document.getElementById('fni_' + rid);
-  if (!inp) return;
-  const newBase = inp.value.trim();
-  if (!newBase) { toast('Name cannot be empty', 'error'); return; }
-
-  // Build new full path: keep the directory part of the old name, replace filename
-  const parts   = oldName.split('/');
-  parts[parts.length - 1] = newBase;
+  const inp = document.getElementById('fni_' + rid); if (!inp) return;
+  const newBase = inp.value.trim(); if (!newBase) { toast('Name cannot be empty', 'error'); return; }
+  const parts = oldName.split('/'); parts[parts.length - 1] = newBase;
   const newName = parts.join('/');
-
   if (newName === oldName) { cancelRename(rid); return; }
-
-  const r = await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(oldName)}/rename`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ new_name: newName }),
-  });
+  const r = await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(oldName)}/rename`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({new_name:newName}) });
   if (!r) return;
   const res = await r.json();
   if (res.error) { toast(res.error, 'error'); return; }
-  toast(`Renamed → ${newBase}`, 'success');
-  loadFiles();
+  toast(`Renamed → ${newBase}`, 'success'); loadFiles();
 }
 
 async function editFile(name) {
@@ -1583,35 +1514,26 @@ async function editFile(name) {
   const content = d.content;
   document.getElementById('edContent').value = content === '[Binary — cannot display]' ? '' : content;
   document.getElementById('edContent').dataset.fn = name;
-  if (content === '[Binary — cannot display]') {
-    toast('Binary file — showing empty editor. Save will overwrite.', 'info');
-  }
+  if (content === '[Binary — cannot display]') toast('Binary file — showing empty editor. Save will overwrite.', 'info');
   document.getElementById('mEditor').classList.add('open');
 }
 async function saveFile() {
   const name = document.getElementById('edContent').dataset.fn; if (!name) return;
-  const r = await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: document.getElementById('edContent').value }),
-  });
+  const r = await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:document.getElementById('edContent').value}) });
   if (!r || !r.ok) { toast('Save failed', 'error'); return; }
   closeModal('mEditor'); loadFiles(); toast(`${name} saved`, 'success');
 }
 function openNewFileModal() { if (!curBot) { toast('Select an instance first', 'error'); return; } document.getElementById('mNewFile').classList.add('open'); }
 async function createNewFile() {
   const name = document.getElementById('nfName').value.trim(); if (!name) { toast('Filename required', 'error'); return; }
-  const r = await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: document.getElementById('nfContent').value }),
-  });
+  const r = await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:document.getElementById('nfContent').value}) });
   if (!r || !r.ok) { toast('Create failed', 'error'); return; }
-  closeModal('mNewFile');
-  document.getElementById('nfName').value = ''; document.getElementById('nfContent').value = '';
+  closeModal('mNewFile'); document.getElementById('nfName').value = ''; document.getElementById('nfContent').value = '';
   loadFiles(); toast('File created', 'success');
 }
 async function delFile(name) {
   if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-  const r = await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  const r = await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`, { method:'DELETE' });
   if (!r || !r.ok) { toast('Delete failed', 'error'); return; }
   loadFiles(); toast('File deleted', 'success');
 }
@@ -1619,37 +1541,24 @@ function dlFile(name) { window.location.href = `/api/bot/${curBot}/file/${encode
 
 /* ══════════════════════════════════════════════════════
    DRAG & DROP / UPLOAD
-   For folder uploads: browser sets webkitRelativePath = "FolderName/sub/file.ext"
-   The backend now expects the FULL relative path and strips the top-level folder name itself.
-   For plain file uploads: just use the filename.
 ══════════════════════════════════════════════════════ */
 async function handleUpload(files, isFolder) {
   const fileArr = files ? Array.from(files) : [];
-  // Reset file inputs so the same file can be re-selected
   try { document.getElementById('fileUploadInput').value = ''; } catch (e) {}
   try { document.getElementById('folderUploadInput').value = ''; } catch (e) {}
   if (!curBot) { toast('Select an instance first', 'error'); return; }
   if (!fileArr.length) { toast('No files selected', 'error'); return; }
-
   const prog = document.getElementById('uploadProgress');
   let ok = 0, fail = 0;
-
   for (const file of fileArr) {
-    // For folder uploads, webkitRelativePath already includes the top-level folder name.
-    // We pass it as-is and let the backend strip the leading folder component.
-    // For regular uploads, just use the filename.
     const relPath = (isFolder && file.webkitRelativePath) ? file.webkitRelativePath : file.name;
     const fd = new FormData();
-    fd.append('file', file);
-    fd.append('relative_path', relPath);
-    fd.append('is_folder_upload', isFolder ? '1' : '0');
-
+    fd.append('file', file); fd.append('relative_path', relPath); fd.append('is_folder_upload', isFolder ? '1' : '0');
     const sid = 'up_' + Math.random().toString(36).slice(2);
     const wrap = document.createElement('div'); wrap.className = 'upload-row';
     const shortName = relPath.length > 50 ? '…' + relPath.slice(-47) : relPath;
     wrap.innerHTML = `<span style="color:var(--cyan);flex-shrink:0">⇪</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px" title="${escH(relPath)}">${escH(shortName)}</span><div class="upload-bar-wrap"><div class="upload-bar-fill" id="${sid}" style="width:0%"></div></div><span id="${sid}st" style="font-size:10px;color:var(--text-3);flex-shrink:0;min-width:26px;text-align:right">0%</span>`;
     prog.appendChild(wrap);
-
     try {
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -1663,11 +1572,9 @@ async function handleUpload(files, isFolder) {
         });
         xhr.addEventListener('load', () => {
           if (xhr.status === 401) { document.getElementById('loginOverlay').style.display = 'flex'; reject(new Error('Unauthorized')); return; }
-          let resp = {};
-          try { resp = JSON.parse(xhr.responseText); } catch (e) {}
+          let resp = {}; try { resp = JSON.parse(xhr.responseText); } catch (e) {}
           if (resp.error) { reject(new Error(resp.error)); return; }
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`HTTP ${xhr.status}`));
+          if (xhr.status >= 200 && xhr.status < 300) resolve(); else reject(new Error(`HTTP ${xhr.status}`));
         });
         xhr.addEventListener('error', () => reject(new Error('Network error')));
         xhr.addEventListener('abort', () => reject(new Error('Aborted')));
@@ -1681,13 +1588,10 @@ async function handleUpload(files, isFolder) {
       const b = document.getElementById(sid), s = document.getElementById(sid + 'st');
       if (b) { b.style.width = '100%'; b.style.background = 'var(--red)'; }
       if (s) { s.textContent = '✕'; s.style.color = 'var(--red)'; }
-      wrap.style.borderColor = 'rgba(255,32,85,0.3)';
-      fail++;
-      toast(`Upload failed: ${err.message}`, 'error');
-      setTimeout(() => wrap.remove(), 4000);
+      wrap.style.borderColor = 'rgba(255,32,85,0.3)'; fail++;
+      toast(`Upload failed: ${err.message}`, 'error'); setTimeout(() => wrap.remove(), 4000);
     }
   }
-
   loadFiles();
   if (ok > 0 && fail === 0) toast(`${ok} file${ok > 1 ? 's' : ''} uploaded`, 'success');
   else if (ok > 0 && fail > 0) toast(`${ok} uploaded, ${fail} failed`, 'info');
@@ -1698,8 +1602,7 @@ document.addEventListener('dragenter', e => { e.preventDefault(); _dzDepth++; do
 document.addEventListener('dragleave', e => { if (--_dzDepth <= 0) { _dzDepth = 0; document.getElementById('dropZone')?.classList.remove('dragging'); } });
 document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => {
-  e.preventDefault(); _dzDepth = 0;
-  document.getElementById('dropZone')?.classList.remove('dragging');
+  e.preventDefault(); _dzDepth = 0; document.getElementById('dropZone')?.classList.remove('dragging');
   if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files, false);
 });
 
@@ -1709,8 +1612,7 @@ async function loadEnv() {
   const r = await apiFetch(`/api/bot/${curBot}/env`); if (!r) return;
   const env = await r.json(); const c = document.getElementById('envRows'); c.innerHTML = '';
   const entries = Object.entries(env);
-  if (entries.length) entries.forEach(([k, v]) => addEnvRow(k, v));
-  else addEnvRow('', '');
+  if (entries.length) entries.forEach(([k, v]) => addEnvRow(k, v)); else addEnvRow('', '');
 }
 function addEnvRow(k = '', v = '') {
   const d = document.createElement('div'); d.className = 'env-row';
@@ -1718,8 +1620,7 @@ function addEnvRow(k = '', v = '') {
   const vInput = document.createElement('input'); vInput.className = 'env-field'; vInput.placeholder = 'value'; vInput.value = v;
   const delBtn = document.createElement('button'); delBtn.className = 'icon-btn ib-red'; delBtn.textContent = '✕';
   delBtn.style.cssText = 'width:28px;height:28px'; delBtn.onclick = () => d.remove();
-  d.append(kInput, vInput, delBtn);
-  document.getElementById('envRows').appendChild(d);
+  d.append(kInput, vInput, delBtn); document.getElementById('envRows').appendChild(d);
 }
 async function saveEnv() {
   if (!curBot) return;
@@ -1729,7 +1630,7 @@ async function saveEnv() {
     const k = inputs[0]?.value.trim(), v = inputs[1]?.value;
     if (k) env[k] = v || '';
   });
-  const r = await apiFetch(`/api/bot/${curBot}/env`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(env) });
+  const r = await apiFetch(`/api/bot/${curBot}/env`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(env) });
   if (!r || !r.ok) { toast('Save failed', 'error'); return; }
   toast('Environment saved', 'success');
 }
@@ -1739,7 +1640,7 @@ async function loadSettings() {
   if (!curBot) return;
   const b = botRegistry[curBot] || {};
   document.getElementById('stName').value = b.name || '';
-  document.getElementById('stStartup').value = b.startup_file || 'main.py';
+  document.getElementById('stStartup').value = b.startup_file || RUNTIMES[currentRuntime]?.defaultFile || 'main.py';
   document.getElementById('stAR').value = b.auto_restart ? 'true' : 'false';
   if (!b.is_shared) {
     const r = await apiFetch(`/api/bot/${curBot}/subusers`);
@@ -1758,12 +1659,8 @@ async function loadSettings() {
 }
 async function saveSettings() {
   if (!curBot) return;
-  const data = {
-    name: document.getElementById('stName').value.trim(),
-    startup_file: document.getElementById('stStartup').value.trim() || 'main.py',
-    auto_restart: document.getElementById('stAR').value === 'true',
-  };
-  const r = await apiFetch(`/api/bot/${curBot}/settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const data = { name: document.getElementById('stName').value.trim(), startup_file: document.getElementById('stStartup').value.trim() || RUNTIMES[currentRuntime]?.defaultFile || 'main.py', auto_restart: document.getElementById('stAR').value === 'true' };
+  const r = await apiFetch(`/api/bot/${curBot}/settings`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
   if (!r) return;
   if (!r.ok) { const e = await r.json(); toast(e.error || 'Save failed', 'error'); return; }
   const upd = await r.json();
@@ -1775,13 +1672,13 @@ async function saveSettings() {
 async function addSubuser() {
   if (!curBot) return;
   const u = document.getElementById('newSubuser').value.trim(); if (!u) return;
-  const r = await apiFetch(`/api/bot/${curBot}/subusers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u }) });
+  const r = await apiFetch(`/api/bot/${curBot}/subusers`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u}) });
   if (r && r.ok) { document.getElementById('newSubuser').value = ''; loadSettings(); toast(`Access granted to ${u}`, 'success'); }
   else toast('User not found', 'error');
 }
 async function removeSubuser(u) {
   if (!curBot) return;
-  const r = await apiFetch(`/api/bot/${curBot}/subusers/${encodeURIComponent(u)}`, { method: 'DELETE' });
+  const r = await apiFetch(`/api/bot/${curBot}/subusers/${encodeURIComponent(u)}`, { method:'DELETE' });
   if (r && r.ok) { loadSettings(); toast(`Access revoked for ${u}`, 'success'); }
 }
 
@@ -1792,8 +1689,7 @@ function startUptime() {
     if (curBot && startTimes[curBot]) {
       const s = Math.floor((Date.now() - startTimes[curBot]) / 1000);
       const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
-      document.getElementById('sUptime').textContent =
-        `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+      document.getElementById('sUptime').textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
     }
   }, 1000);
 }
@@ -1813,14 +1709,10 @@ async function fetchRes() {
 }
 
 /* ── utils ── */
-function escH(s) {
-  return String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
+function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function toast(msg, type = 'success') {
   const tray = document.getElementById('toastTray');
-  const icons = { success: '✓', error: '✕', info: 'i' };
+  const icons = { success:'✓', error:'✕', info:'i' };
   const t = document.createElement('div'); t.className = `toast ${type}`;
   t.innerHTML = `<div class="toast-icon">${icons[type] || '·'}</div><span>${escH(msg)}</span><span class="toast-close" onclick="this.parentElement.remove()">✕</span>`;
   tray.appendChild(t);
@@ -1829,30 +1721,19 @@ function toast(msg, type = 'success') {
 
 /* ── add host modal ── */
 function openAddHostModal() {
-  document.getElementById('ahUrl').value = '';
-  document.getElementById('ahLabel').value = '';
-  document.getElementById('mAddHost').classList.add('open');
-  setTimeout(() => document.getElementById('ahUrl').focus(), 80);
+  document.getElementById('ahUrl').value = ''; document.getElementById('ahLabel').value = '';
+  document.getElementById('mAddHost').classList.add('open'); setTimeout(() => document.getElementById('ahUrl').focus(), 80);
 }
 function submitAddHost() {
-  let url   = document.getElementById('ahUrl').value.trim();
-  const lbl = document.getElementById('ahLabel').value.trim();
+  let url = document.getElementById('ahUrl').value.trim(), lbl = document.getElementById('ahLabel').value.trim();
   if (!url) { toast('Host URL required', 'error'); return; }
   if (!/^https?:\/\//.test(url)) url = 'http://' + url;
-  addHost(url, lbl || url.replace(/^https?:\/\//, ''));
-  closeModal('mAddHost');
-  toast('Host added', 'success');
+  addHost(url, lbl || url.replace(/^https?:\/\//, '')); closeModal('mAddHost'); toast('Host added', 'success');
 }
 
 /* ── boot ── */
 checkAuth().then(ok => {
-  if (ok) {
-    loadHostsFromStorage();
-    renderHostSwitcher();
-    loadBots();
-    fetchRes();
-    setInterval(fetchRes, 5000);
-  }
+  if (ok) { loadHostsFromStorage(); renderHostSwitcher(); loadBots(); fetchRes(); setInterval(fetchRes, 5000); }
 });
 </script>
 </body>
@@ -1885,10 +1766,8 @@ def login():
     if username not in users:
         return jsonify({'error': 'User not found'}), 401
     stored = users[username].get('pwd', '')
-    # Support both legacy plaintext and hashed passwords
     if stored != _hash_pw(password) and stored != password:
         return jsonify({'error': 'Invalid password'}), 401
-    # Upgrade plaintext to hash on successful login
     if stored == password:
         users[username]['pwd'] = _hash_pw(password)
         save_users(users)
@@ -1953,7 +1832,6 @@ def create_bot_route():
     user = session.get('username')
     if not user:
         return jsonify({'error': 'unauth'}), 401
-    # Enforce per-user bot limit
     cfg = load_config()
     user_bots = [b for b in cfg.values() if b.get('owner') == user]
     if len(user_bots) >= MAX_BOTS_PER_USER:
@@ -2037,7 +1915,7 @@ def kill_route(bid):
     if not check_access(bid):
         return jsonify({'error': 'unauth'}), 401
     if bid in bots:
-        bots[bid]['auto_restart'] = False  # Prevent auto-restart after force kill
+        bots[bid]['auto_restart'] = False
         proc = bots[bid].get('process')
         if proc:
             try:
@@ -2089,7 +1967,6 @@ def files_route(bid):
         return jsonify({'error': 'unauth'}), 401
     bd = get_bot_dir(bid); out = []
     for root, dirs, files in os.walk(bd):
-        # Skip hidden directories
         dirs[:] = [d for d in dirs if not d.startswith('.')]
         for f in files:
             if f == 'system.log':
@@ -2146,7 +2023,7 @@ def del_file(bid, fn):
     if not os.path.exists(fp):
         return jsonify({'error': 'file not found'}), 404
     if os.path.isdir(fp):
-        return jsonify({'error': 'path is a directory; use directory deletion endpoint'}), 400
+        return jsonify({'error': 'path is a directory'}), 400
     os.remove(fp)
     return jsonify({'ok': True})
 
@@ -2169,7 +2046,6 @@ def rename_file(bid, fn):
         return jsonify({'error': 'source is a directory'}), 400
     if os.path.exists(dst):
         return jsonify({'error': 'a file with that name already exists'}), 409
-    # Ensure destination directory exists
     dst_dir = os.path.dirname(dst)
     if dst_dir:
         os.makedirs(dst_dir, exist_ok=True)
@@ -2206,17 +2082,18 @@ def upload_route(bid):
     if not raw_relative:
         return jsonify({'error': 'could not determine filename'}), 400
 
-    # Normalize separators and split into components
-    parts = [p for p in raw_relative.replace('\\', '/').split('/') if p and p not in ('.', '..')]
+    # Normalize separators
+    normalized = raw_relative.replace('\\', '/')
+    parts = [p for p in normalized.split('/') if p and p not in ('.', '..')]
 
-    # For folder uploads the browser prepends the top-level folder name (e.g. "myproject/src/app.py").
-    # Strip that first component so files land directly in the bot directory.
+    # For folder uploads, browser sends "FolderName/sub/file.ext" — strip top-level folder
     if is_folder_up and len(parts) > 1:
         parts = parts[1:]
 
-    # Sanitize each component
+    # Sanitize each path component individually to preserve structure
     safe_parts = []
     for p in parts:
+        # Use secure_filename but fall back to manual clean for path components
         s = secure_filename(p)
         if s:
             safe_parts.append(s)
@@ -2228,66 +2105,117 @@ def upload_route(bid):
     if not safe_parts:
         return jsonify({'error': 'invalid filename after sanitisation'}), 400
 
-    rel_path = os.path.join(*safe_parts)
-    dest     = os.path.abspath(os.path.join(abs_bd, rel_path))
+    rel_path = '/'.join(safe_parts)
+    dest     = os.path.abspath(os.path.join(abs_bd, *safe_parts))
 
     # Final traversal check
     if dest != abs_bd and not dest.startswith(abs_bd + os.sep):
         return jsonify({'error': 'path traversal blocked'}), 403
 
-    try:
-        parent = os.path.dirname(dest)
-        if parent and parent != abs_bd:
-            os.makedirs(parent, exist_ok=True)
-        file.save(dest)
-    except Exception as e:
-        log.exception('Upload save failed')
-        return jsonify({'error': f'Save failed: {e}'}), 500
-
     fname = safe_parts[-1]
 
+    # ── Handle ZIP: extract preserving full internal folder structure ──────────
     if fname.lower().endswith('.zip'):
+        # Save zip temporarily
+        tmp_zip = dest
+        try:
+            parent = os.path.dirname(tmp_zip)
+            if parent and parent != abs_bd:
+                os.makedirs(parent, exist_ok=True)
+            file.save(tmp_zip)
+        except Exception as e:
+            log.exception('ZIP save failed')
+            return jsonify({'error': f'Save failed: {e}'}), 500
+
         extracted, blocked = 0, 0
         try:
-            with zipfile.ZipFile(dest, 'r') as zf:
+            with zipfile.ZipFile(tmp_zip, 'r') as zf:
                 # Check for password protection
                 for info in zf.infolist():
                     if info.flag_bits & 0x1:
                         emit_log(bid, '[Error] ZIP is password-protected', 'error')
-                        os.remove(dest)
+                        os.remove(tmp_zip)
                         return jsonify({'error': 'password-protected zip'}), 400
-                for m in zf.namelist():
-                    # Skip directory entries
-                    if m.endswith('/') or m.endswith('\\'):
+
+                # Determine extraction base: same directory as the zip
+                zip_dest_dir = os.path.dirname(tmp_zip)
+                if not zip_dest_dir:
+                    zip_dest_dir = abs_bd
+
+                for member in zf.infolist():
+                    # Normalize the member name
+                    member_path = member.filename.replace('\\', '/')
+
+                    # Skip pure directory entries
+                    if member_path.endswith('/'):
                         continue
-                    mp = os.path.abspath(os.path.join(abs_bd, m))
-                    if mp.startswith(abs_bd + os.sep):
-                        mp_dir = os.path.dirname(mp)
-                        if mp_dir:
-                            os.makedirs(mp_dir, exist_ok=True)
-                        with zf.open(m) as src_f, open(mp, 'wb') as dst_f:
-                            dst_f.write(src_f.read())
-                        extracted += 1
-                    else:
-                        log.warning(f'Blocked zip-slip: {m}')
+
+                    # Sanitize each component of the member path
+                    m_parts = [p for p in member_path.split('/') if p and p not in ('.', '..')]
+                    if not m_parts:
+                        continue
+
+                    safe_m_parts = []
+                    for p in m_parts:
+                        s = secure_filename(p)
+                        if s:
+                            safe_m_parts.append(s)
+                        else:
+                            cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', p).strip(' .')
+                            if cleaned:
+                                safe_m_parts.append(cleaned)
+
+                    if not safe_m_parts:
+                        continue
+
+                    # Extract relative to the zip's own directory (preserving structure)
+                    dest_file = os.path.abspath(os.path.join(zip_dest_dir, *safe_m_parts))
+
+                    # Zip-slip check: must remain inside bot directory
+                    if not dest_file.startswith(abs_bd + os.sep) and dest_file != abs_bd:
+                        log.warning(f'Blocked zip-slip: {member.filename}')
                         blocked += 1
-            os.remove(dest)
+                        continue
+
+                    # Create parent directories (preserving folder structure)
+                    dest_file_dir = os.path.dirname(dest_file)
+                    if dest_file_dir:
+                        os.makedirs(dest_file_dir, exist_ok=True)
+
+                    # Extract the file
+                    with zf.open(member) as src_f, open(dest_file, 'wb') as dst_f:
+                        dst_f.write(src_f.read())
+
+                    extracted += 1
+
+            os.remove(tmp_zip)
             msg = f'[System] Extracted {extracted} file(s) from {fname}'
             if blocked:
-                msg += f' ({blocked} blocked)'
+                msg += f' ({blocked} path(s) blocked)'
             emit_log(bid, msg, 'success' if extracted else 'warn')
+
         except zipfile.BadZipFile:
             emit_log(bid, f'[Error] {fname} is not a valid ZIP', 'error')
-            if os.path.exists(dest):
-                os.remove(dest)
+            if os.path.exists(tmp_zip):
+                os.remove(tmp_zip)
             return jsonify({'error': 'bad zip'}), 400
         except Exception as e:
             emit_log(bid, f'[Error] ZIP extract failed: {e}', 'error')
-            if os.path.exists(dest):
-                os.remove(dest)
+            if os.path.exists(tmp_zip):
+                os.remove(tmp_zip)
             return jsonify({'error': str(e)}), 500
+
     else:
-        emit_log(bid, f'[System] Uploaded {rel_path}', 'system')
+        # Regular file upload — create parent directories as needed
+        try:
+            parent = os.path.dirname(dest)
+            if parent and parent != abs_bd:
+                os.makedirs(parent, exist_ok=True)
+            file.save(dest)
+            emit_log(bid, f'[System] Uploaded {rel_path}', 'system')
+        except Exception as e:
+            log.exception('Upload save failed')
+            return jsonify({'error': f'Save failed: {e}'}), 500
 
     return jsonify({'ok': True, 'filename': rel_path})
 
@@ -2301,20 +2229,17 @@ def get_env(bid):
 
 @app.route('/api/bot/<bid>/env', methods=['PUT'])
 def put_env(bid):
-    # Only owner can modify env (contains secrets)
     if not check_owner(bid):
         return jsonify({'error': 'unauth'}), 401
     data = request.json
     if not isinstance(data, dict):
         return jsonify({'error': 'expected JSON object'}), 400
-    # Validate keys/values are strings
     cleaned = {str(k): str(v) for k, v in data.items() if k}
     cfg = load_config(); cfg.setdefault(bid, {})['env'] = cleaned; save_config(cfg)
     return jsonify({'ok': True})
 
 @app.route('/api/bot/<bid>/settings', methods=['PUT'])
 def put_settings(bid):
-    # Only owner can change settings
     if not check_owner(bid):
         return jsonify({'error': 'unauth'}), 401
     data = request.json or {}
@@ -2332,12 +2257,10 @@ def put_settings(bid):
 
 # ── system resources ──────────────────────────────────────────────────────────
 
-# Cache CPU reading to avoid blocking on every request
 _cpu_cache = {'val': 0.0, 'ts': 0.0}
 _cpu_lock  = threading.Lock()
 
 def _update_cpu():
-    """Background thread that keeps CPU reading fresh."""
     while True:
         try:
             v = psutil.cpu_percent(interval=1)
@@ -2368,7 +2291,7 @@ def resources():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     print('\n' + '━' * 56)
-    print(f'  VORTEX HOSTING v11.4  ·  mode={_ASYNC_MODE}  ·  port={port}')
+    print(f'  VORTEX HOSTING v11.5  ·  mode={_ASYNC_MODE}  ·  port={port}')
     print('━' * 56 + '\n')
     if _ASYNC_MODE == 'eventlet':
         socketio.run(app, host='0.0.0.0', port=port, debug=False)
