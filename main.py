@@ -1443,7 +1443,7 @@ async function loadFiles() {
     const fnIcon = document.createElement('span'); fnIcon.className = 'fn-icon'; fnIcon.textContent = ic;
     const fnLink = document.createElement('span');
     fnLink.className = 'fn-link'; fnLink.id = 'fnl_' + rid;
-    const displayName = f.name.split('/').pop(), dirPath = f.name.includes('/') ? f.name.split('/').slice(0,-1).join('/') : '';
+    const displayName = f.name.split('/').pop();
     fnLink.title = f.name; fnLink.textContent = displayName; fnLink.onclick = () => editFile(f.name);
     const fnRename = document.createElement('div'); fnRename.className = 'fn-rename'; fnRename.id = 'fnr_' + rid;
     const fnInput = document.createElement('input'); fnInput.className = 'fn-rename-input'; fnInput.id = 'fni_' + rid; fnInput.value = displayName;
@@ -1451,12 +1451,7 @@ async function loadFiles() {
     const fnOk = document.createElement('button'); fnOk.className = 'fn-rename-ok'; fnOk.textContent = '✓'; fnOk.onclick = () => doRename(rid);
     const fnCancel = document.createElement('button'); fnCancel.className = 'fn-rename-cancel'; fnCancel.textContent = '✕'; fnCancel.onclick = () => cancelRename(rid);
     fnRename.append(fnInput, fnOk, fnCancel);
-    if (dirPath) {
-      const dirSpan = document.createElement('span');
-      dirSpan.style.cssText = 'color:var(--text-3);font-size:10px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px';
-      dirSpan.title = dirPath; dirSpan.textContent = dirPath + '/';
-      fnCell.append(fnIcon, dirSpan, fnLink, fnRename);
-    } else { fnCell.append(fnIcon, fnLink, fnRename); }
+    fnCell.append(fnIcon, fnLink, fnRename);
     tdName.appendChild(fnCell);
     // type cell
     const tdType = document.createElement('td');
