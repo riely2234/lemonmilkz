@@ -175,15 +175,31 @@ def start_bot(bot_id, startup_file=None):
 
     ext = startup_file.rsplit('.', 1)[-1].lower()
 
+    def _run_streaming(cmd, cwd=None, timeout=300):
+        """Run a command, streaming its output to the console. Returns returncode."""
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, cwd=cwd)
+        try:
+            for line in iter(proc.stdout.readline, ''):
+                stripped = line.rstrip()
+                if stripped:
+                    emit_log(bot_id, stripped, 'default')
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            emit_log(bot_id, '[Error] Command timed out.', 'error')
+            return -1
+        return proc.returncode
+
     if ext == 'py':
         req = os.path.join(bot_dir, 'requirements.txt')
         if os.path.exists(req):
             emit_log(bot_id, '[System] Installing Python requirements…', 'system')
-            result = subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', '-r', req],
-                capture_output=True, text=True)
-            if result.returncode != 0:
-                emit_log(bot_id, f'[Error] pip install failed:\n{result.stderr}', 'error')
+            rc = _run_streaming(
+                [sys.executable, '-m', 'pip', 'install', '--no-input', '-r', req])
+            if rc != 0:
+                emit_log(bot_id, '[Error] pip install failed. See output above.', 'error')
                 return
             emit_log(bot_id, '[System] Requirements installed.', 'success')
 
@@ -191,9 +207,9 @@ def start_bot(bot_id, startup_file=None):
         pkg = os.path.join(bot_dir, 'package.json')
         if os.path.exists(pkg):
             emit_log(bot_id, '[System] Running npm install…', 'system')
-            result = subprocess.run(['npm', 'install'], cwd=bot_dir, capture_output=True, text=True)
-            if result.returncode != 0:
-                emit_log(bot_id, f'[Error] npm install failed:\n{result.stderr}', 'error')
+            rc = _run_streaming(['npm', 'install', '--no-progress'], cwd=bot_dir)
+            if rc != 0:
+                emit_log(bot_id, '[Error] npm install failed. See output above.', 'error')
                 return
             emit_log(bot_id, '[System] npm packages installed.', 'success')
 
@@ -201,9 +217,9 @@ def start_bot(bot_id, startup_file=None):
         pkg = os.path.join(bot_dir, 'package.json')
         if os.path.exists(pkg):
             emit_log(bot_id, '[System] Running npm install…', 'system')
-            result = subprocess.run(['npm', 'install'], cwd=bot_dir, capture_output=True, text=True)
-            if result.returncode != 0:
-                emit_log(bot_id, f'[Error] npm install failed:\n{result.stderr}', 'error')
+            rc = _run_streaming(['npm', 'install', '--no-progress'], cwd=bot_dir)
+            if rc != 0:
+                emit_log(bot_id, '[Error] npm install failed. See output above.', 'error')
                 return
             emit_log(bot_id, '[System] npm packages installed.', 'success')
         ts_node = shutil.which('ts-node') or shutil.which('npx')
@@ -220,13 +236,9 @@ def start_bot(bot_id, startup_file=None):
             emit_log(bot_id, '[Error] cargo not found. Install Rust toolchain.', 'error')
             return
         emit_log(bot_id, '[System] Building Rust project (cargo build --release)…', 'system')
-        result = subprocess.run(
-            ['cargo', 'build', '--release'],
-            cwd=bot_dir, capture_output=True, text=True)
-        if result.stdout: emit_log(bot_id, result.stdout.strip(), 'default')
-        if result.stderr: emit_log(bot_id, result.stderr.strip(), 'default')
-        if result.returncode != 0:
-            emit_log(bot_id, '[Error] cargo build failed.', 'error')
+        rc = _run_streaming(['cargo', 'build', '--release'], cwd=bot_dir, timeout=600)
+        if rc != 0:
+            emit_log(bot_id, '[Error] cargo build failed. See output above.', 'error')
             return
         emit_log(bot_id, '[System] Rust build successful.', 'success')
 
@@ -239,13 +251,9 @@ def start_bot(bot_id, startup_file=None):
             emit_log(bot_id, '[Error] dotnet not found. Install the .NET SDK.', 'error')
             return
         emit_log(bot_id, '[System] Building C# project (dotnet build)…', 'system')
-        result = subprocess.run(
-            ['dotnet', 'build', '--configuration', 'Release'],
-            cwd=bot_dir, capture_output=True, text=True)
-        if result.stdout: emit_log(bot_id, result.stdout.strip(), 'default')
-        if result.stderr: emit_log(bot_id, result.stderr.strip(), 'default')
-        if result.returncode != 0:
-            emit_log(bot_id, '[Error] dotnet build failed.', 'error')
+        rc = _run_streaming(['dotnet', 'build', '--configuration', 'Release'], cwd=bot_dir, timeout=600)
+        if rc != 0:
+            emit_log(bot_id, '[Error] dotnet build failed. See output above.', 'error')
             return
         emit_log(bot_id, '[System] C# build successful.', 'success')
 
