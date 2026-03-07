@@ -17,7 +17,7 @@ from flask_socketio import SocketIO, join_room
 from werkzeug.utils import secure_filename
 
 log = getLogger('vortexhost')
-log.setLevel(logging.INFO)
+log.setLevethl(logging.INFO)
 _h = StreamHandler()
 _h.setFormatter(Formatter('%(asctime)s %(levelname)s %(message)s'))
 log.addHandler(_h)
