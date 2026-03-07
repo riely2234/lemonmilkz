@@ -33,5 +33,13 @@
     "env": {},
     "owner": "jaes",
     "shared_with": []
+  },
+  "bot_1772906823561": {
+    "name": "t",
+    "startup_file": "main.py",
+    "auto_restart": false,
+    "env": {},
+    "owner": "jaes",
+    "shared_with": []
   }
 }
