@@ -17,7 +17,7 @@ from flask_socketio import SocketIO, join_room
 from werkzeug.utils import secure_filename
 
 log = getLogger('vortexhost')
-log.setLevethl(logging.INFO)
+log.setLevel(logging.INFO)
 _h = StreamHandler()
 _h.setFormatter(Formatter('%(asctime)s %(levelname)s %(message)s'))
 log.addHandler(_h)
@@ -171,467 +171,948 @@ HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>VORTEX HOSTING</title>
+<title>Vortex — Hosting Platform</title>
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@400;500;600;700&family=Fira+Code:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{--bg-void:#040508;--bg-panel:#0A0D14;--bg-glass:rgba(10,13,20,.85);--line-dim:rgba(0,240,255,.05);--line:rgba(0,240,255,.15);--line-bright:rgba(0,240,255,.3);--neon-cyan:#00F0FF;--neon-purple:#B000FF;--neon-blue:#0077FF;--amber:#FFB800;--green:#00FF66;--red:#FF0055;--text-main:#E0F2FE;--text-muted:#6A85B6;--text-dark:#3A4E7A;--font-mono:'Fira Code',monospace;--font-sans:'Rajdhani',sans-serif;--font-disp:'Orbitron',sans-serif;--anim-spring:cubic-bezier(.175,.885,.32,1.1);--anim-smooth:cubic-bezier(.25,.8,.25,1)}
-html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-void);color:var(--text-main);font-family:var(--font-sans)}
-#app{display:flex;width:100%;height:100%;position:relative;z-index:1}
-button,input,select,textarea,.clickable{cursor:pointer}
-body::before{content:'';position:fixed;inset:0;z-index:-2;pointer-events:none;background-image:linear-gradient(var(--line-dim) 1px,transparent 1px),linear-gradient(90deg,var(--line-dim) 1px,transparent 1px);background-size:50px 50px;opacity:.6}
-body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at center,rgba(0,119,255,.08) 0%,transparent 60%)}
-::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(0,119,255,.5);border-radius:10px}::-webkit-scrollbar-thumb:hover{background:var(--neon-cyan)}
-.sidebar{width:280px;min-width:280px;height:100%;display:flex;flex-direction:column;position:relative;z-index:9500;background:var(--bg-glass);backdrop-filter:blur(25px);-webkit-backdrop-filter:blur(25px);border-right:1px solid var(--line);box-shadow:5px 0 30px rgba(0,0,0,.8);transition:transform .4s var(--anim-spring)}
-.sidebar::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--neon-cyan),transparent);box-shadow:0 2px 15px rgba(0,240,255,.5)}
-.sidebar-close-btn{display:none;position:absolute;right:20px;top:35px;background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;transition:color .2s;z-index:1000}
-.sidebar-close-btn:hover{color:var(--neon-cyan)}
-.logo{padding:30px 24px 20px;border-bottom:1px solid var(--line);position:relative}
-.logo::after{content:'';position:absolute;bottom:0;left:0;width:100%;height:2px;background:linear-gradient(90deg,var(--neon-cyan),var(--neon-purple));box-shadow:0 0 10px var(--neon-cyan)}
-.logo-wordmark{font-family:var(--font-disp);font-size:32px;font-weight:900;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,#fff,var(--neon-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.nav{padding:24px 16px;flex-shrink:0;overflow-y:auto}
-.nav-label{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:4px;color:var(--text-dark);text-transform:uppercase;padding:10px 14px;display:flex;align-items:center;gap:10px}
-.nav-label::after{content:'';flex:1;height:1px;background:var(--line)}
-.nav-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:6px;font-size:15px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:all .3s;margin-bottom:6px;border:1px solid transparent}
-.nav-item:hover{background:rgba(0,240,255,.05);color:var(--text-main);transform:translateX(4px);border-color:var(--line-dim)}
-.nav-item.active{background:linear-gradient(90deg,rgba(0,240,255,.15),transparent);color:var(--neon-cyan);border-left:3px solid var(--neon-cyan)}
-.nav-glyph{width:20px;font-family:var(--font-mono);font-size:16px;text-align:center;opacity:.5;transition:all .3s}
-.nav-item.active .nav-glyph{opacity:1;text-shadow:0 0 12px var(--neon-cyan)}
-.bot-section-header{display:flex;align-items:center;justify-content:space-between;padding:10px 24px 12px;flex-shrink:0}
-.bot-section-label{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:3px;color:var(--text-dark);text-transform:uppercase}
-.bot-count-badge{background:rgba(0,240,255,.1);border:1px solid rgba(0,240,255,.3);border-radius:4px;padding:2px 8px;font-family:var(--font-mono);font-size:11px;color:var(--neon-cyan);font-weight:700}
-.new-bot-btn{margin:0 16px 16px;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border:1px dashed var(--line-bright);border-radius:6px;font-size:14px;font-weight:700;color:var(--text-muted);background:rgba(0,0,0,.4);transition:all .3s var(--anim-spring);font-family:var(--font-disp);letter-spacing:2px}
-.new-bot-btn:hover{border-color:var(--neon-purple);color:var(--neon-purple);background:rgba(176,0,255,.1);transform:translateY(-2px)}
-.bot-list{flex:1;overflow-y:auto;padding:0 16px 16px}
-.bot-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:6px;cursor:pointer;transition:all .3s;margin-bottom:8px;border:1px solid var(--line-dim);background:rgba(0,0,0,.4)}
-.bot-item:hover{background:rgba(0,240,255,.05);border-color:var(--line);transform:translateY(-1px)}
-.bot-item.active{background:rgba(0,240,255,.1);border-color:var(--neon-cyan)}
-.bot-indicator{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.bot-indicator.online{background:var(--green);box-shadow:0 0 12px var(--green);animation:pulse 2s ease-in-out infinite}
-.bot-indicator.offline{background:var(--text-dark)}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)}}
-.bot-name{font-size:15px;font-weight:600;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .3s}
-.bot-item.active .bot-name,.bot-item:hover .bot-name{color:#fff}
-.bot-status-text{font-family:var(--font-mono);font-size:10px;font-weight:500;color:var(--text-dark);margin-top:3px;letter-spacing:1px;text-transform:uppercase}
-.bot-item.active .bot-status-text{color:var(--neon-cyan)}
-.bot-shared-icon{font-size:10px;margin-left:auto;color:var(--neon-purple);opacity:.7}
-.sidebar-footer{padding:20px 24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.6)}
-.footer-brand{font-family:var(--font-disp);font-size:14px;font-weight:700;letter-spacing:4px;color:var(--text-dark);cursor:pointer;transition:all .3s}
-.footer-brand:hover{color:var(--red)}
-.footer-clock{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--neon-cyan)}
-.mobile-bottom-nav{display:none;position:fixed;bottom:16px;left:16px;right:16px;height:70px;background:rgba(15,20,30,.85);backdrop-filter:blur(25px);-webkit-backdrop-filter:blur(25px);border:1px solid var(--line-bright);border-radius:20px;z-index:9000;box-shadow:0 10px 40px rgba(0,0,0,.8);justify-content:space-around;align-items:center;padding:0 10px}
-.m-nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--text-muted);cursor:pointer;transition:all .3s var(--anim-spring);padding:8px;flex:1}
-.m-nav-glyph{font-family:var(--font-mono);font-size:22px;transition:transform .3s}
-.m-nav-text{font-family:var(--font-sans);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
-.m-nav-item.active{color:var(--neon-cyan)}
-.m-nav-item.active .m-nav-glyph{transform:translateY(-4px) scale(1.1)}
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:0;transition:opacity .3s;opacity:0;cursor:pointer}
-.sidebar-overlay.open{display:block;opacity:1}
+
+:root{
+  --void:#08080B;
+  --base:#0E0E12;
+  --surface:#141419;
+  --elevated:#1B1B22;
+  --overlay:#22222C;
+  --border:rgba(255,255,255,0.055);
+  --border-mid:rgba(255,255,255,0.1);
+  --border-hi:rgba(255,255,255,0.18);
+  --amber:#E8A855;
+  --amber-dim:rgba(232,168,85,0.12);
+  --amber-glow:rgba(232,168,85,0.35);
+  --mint:#4DFFCC;
+  --mint-dim:rgba(77,255,204,0.1);
+  --mint-glow:rgba(77,255,204,0.3);
+  --rose:#FF4D6D;
+  --rose-dim:rgba(255,77,109,0.12);
+  --blue:#5B8DEF;
+  --blue-dim:rgba(91,141,239,0.12);
+  --text:#F0EDE8;
+  --text-2:#9E9EA8;
+  --text-3:#52525E;
+  --font-display:'Syne',sans-serif;
+  --font-body:'Instrument Sans',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --radius:8px;
+  --radius-lg:12px;
+  --ease-out:cubic-bezier(0.16,1,0.3,1);
+  --ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+}
+
+html,body{width:100%;height:100%;overflow:hidden;background:var(--void);color:var(--text);font-family:var(--font-body);font-size:14px;-webkit-font-smoothing:antialiased}
+
+/* Scanline overlay */
+body::before{
+  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.015) 2px,rgba(0,0,0,0.015) 4px);
+  animation:scanline 8s linear infinite;
+}
+@keyframes scanline{0%{background-position:0 0}100%{background-position:0 100px}}
+
+/* Dot grid bg */
+body::after{
+  content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:radial-gradient(circle,rgba(255,255,255,0.035) 1px,transparent 1px);
+  background-size:28px 28px;
+}
+
+#app{display:flex;width:100%;height:100%;position:relative}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--overlay);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-mid)}
+
+/* ═══════════════════ SIDEBAR ═══════════════════ */
+.sidebar{
+  width:248px;min-width:248px;height:100%;display:flex;flex-direction:column;
+  background:var(--base);border-right:1px solid var(--border);
+  position:relative;z-index:9500;transition:transform .35s var(--ease-out);
+}
+
+.sidebar-close-btn{display:none;position:absolute;right:16px;top:20px;background:none;border:none;color:var(--text-3);font-size:16px;cursor:pointer;transition:color .2s;z-index:10;width:32px;height:32px;border-radius:6px;align-items:center;justify-content:center}
+.sidebar-close-btn:hover{color:var(--text);background:var(--elevated)}
+
+.logo{padding:24px 20px 20px;border-bottom:1px solid var(--border)}
+.logo-mark{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.logo-hex{width:28px;height:28px;background:var(--amber);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 20px var(--amber-glow)}
+.logo-hex svg{width:16px;height:16px;fill:#000}
+.logo-name{font-family:var(--font-display);font-size:18px;font-weight:800;letter-spacing:.5px;color:var(--text)}
+.logo-sub{font-family:var(--font-mono);font-size:10px;color:var(--text-3);letter-spacing:3px;text-transform:uppercase;margin-left:38px}
+
+.nav{padding:16px 12px;flex-shrink:0}
+.nav-section{font-family:var(--font-mono);font-size:9.5px;font-weight:500;letter-spacing:3px;color:var(--text-3);text-transform:uppercase;padding:8px 8px 6px;margin-top:6px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius);
+  font-size:13.5px;font-weight:500;color:var(--text-2);cursor:pointer;
+  transition:all .18s ease;margin-bottom:2px;position:relative;
+}
+.nav-item:hover{background:var(--elevated);color:var(--text)}
+.nav-item.active{background:var(--amber-dim);color:var(--amber)}
+.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:60%;background:var(--amber);border-radius:0 3px 3px 0;box-shadow:0 0 8px var(--amber-glow)}
+.nav-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:14px;opacity:.7;flex-shrink:0;transition:opacity .18s}
+.nav-item.active .nav-icon{opacity:1}
+.nav-item:hover .nav-icon{opacity:1}
+
+.instances-header{display:flex;align-items:center;justify-content:space-between;padding:8px 20px 8px;border-top:1px solid var(--border);margin-top:4px;flex-shrink:0}
+.instances-label{font-family:var(--font-mono);font-size:9.5px;letter-spacing:3px;text-transform:uppercase;color:var(--text-3)}
+.instances-count{
+  background:var(--elevated);border:1px solid var(--border-mid);
+  border-radius:4px;padding:2px 7px;font-family:var(--font-mono);font-size:11px;
+  color:var(--amber);font-weight:500;
+}
+
+.new-bot-btn{
+  margin:0 12px 10px;display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:10px;border:1px dashed var(--border-mid);border-radius:var(--radius);
+  font-size:12.5px;font-weight:600;color:var(--text-3);background:transparent;
+  transition:all .2s;font-family:var(--font-display);letter-spacing:.5px;cursor:pointer;
+}
+.new-bot-btn:hover{border-color:var(--amber);color:var(--amber);background:var(--amber-dim);transform:none}
+.new-bot-btn-icon{width:20px;height:20px;border-radius:5px;background:var(--elevated);display:flex;align-items:center;justify-content:center;font-size:14px;transition:background .2s}
+.new-bot-btn:hover .new-bot-btn-icon{background:var(--amber-dim)}
+
+.bot-list{flex:1;overflow-y:auto;padding:0 12px 12px}
+.bot-item{
+  display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:var(--radius);
+  cursor:pointer;transition:all .18s ease;margin-bottom:4px;
+  border:1px solid transparent;
+}
+.bot-item:hover{background:var(--elevated)}
+.bot-item.active{background:var(--elevated);border-color:var(--border-mid)}
+.bot-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:all .3s}
+.bot-dot.online{background:var(--mint);box-shadow:0 0 8px var(--mint-glow)}
+.bot-dot.online::after{content:'';position:absolute;width:7px;height:7px;border-radius:50%;background:var(--mint);animation:dotPulse 2s ease-in-out infinite;opacity:.4}
+@keyframes dotPulse{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(2.5);opacity:0}}
+.bot-dot{position:relative}
+.bot-dot.offline{background:var(--text-3)}
+.bot-info{flex:1;min-width:0}
+.bot-name{font-size:13px;font-weight:500;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .2s}
+.bot-item.active .bot-name,.bot-item:hover .bot-name{color:var(--text)}
+.bot-state{font-family:var(--font-mono);font-size:10px;color:var(--text-3);margin-top:2px;letter-spacing:1px}
+.bot-item.active .bot-state.online{color:var(--mint)}
+.bot-shared-badge{font-family:var(--font-mono);font-size:9px;color:var(--blue);background:var(--blue-dim);border:1px solid rgba(91,141,239,0.25);border-radius:3px;padding:1px 5px;flex-shrink:0}
+
+.sidebar-footer{
+  padding:14px 20px;border-top:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;
+  background:var(--void);flex-shrink:0;
+}
+.logout-btn{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;color:var(--text-3);cursor:pointer;transition:color .2s;text-transform:uppercase;background:none;border:none}
+.logout-btn:hover{color:var(--rose)}
+.sidebar-clock{font-family:var(--font-mono);font-size:12px;color:var(--text-3)}
+
+/* ═══════════════════ OVERLAY (mobile) ═══════════════════ */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000;opacity:0;transition:opacity .3s;cursor:pointer;backdrop-filter:blur(2px)}
+.sidebar-overlay.open{opacity:1}
+
+/* ═══════════════════ MOBILE BOTTOM NAV ═══════════════════ */
+.mobile-bottom-nav{
+  display:none;position:fixed;bottom:14px;left:14px;right:14px;
+  height:64px;background:rgba(20,20,26,0.92);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border-mid);border-radius:18px;
+  z-index:9000;justify-content:space-around;align-items:center;padding:0 8px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.04);
+}
+.m-nav-item{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:var(--text-3);cursor:pointer;transition:all .2s var(--ease-out);
+  padding:8px 12px;border-radius:12px;flex:1;
+}
+.m-nav-icon{font-size:18px;transition:transform .2s var(--ease-spring)}
+.m-nav-label{font-size:9px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;font-family:var(--font-display)}
+.m-nav-item.active{color:var(--amber)}
+.m-nav-item.active .m-nav-icon{transform:translateY(-2px) scale(1.1)}
+.m-nav-item:hover{background:var(--elevated);color:var(--text)}
+
+/* ═══════════════════ TOPBAR ═══════════════════ */
 .main{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;position:relative;z-index:10}
-.topbar{height:75px;min-height:75px;background:var(--bg-glass);backdrop-filter:blur(20px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 32px;gap:20px;z-index:20;box-shadow:0 10px 30px rgba(0,0,0,.8)}
-.topbar-main{display:flex;align-items:center;gap:16px;min-width:0}
-.mobile-nav-toggle{display:none;background:none;border:1px solid var(--line);color:var(--text-muted);padding:8px 12px;border-radius:6px;font-size:18px}
-.tb-breadcrumb{display:flex;align-items:center;gap:12px;min-width:0}
-.tb-section{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:3px;color:var(--text-dark);text-transform:uppercase}
-.tb-slash{color:var(--line-bright);font-weight:300}
-.tb-page{font-family:var(--font-disp);font-size:24px;font-weight:700;letter-spacing:3px;line-height:1;margin-top:2px;color:#fff}
-.tb-bot{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--neon-purple);background:rgba(176,0,255,.1);padding:5px 12px;border-radius:4px;border:1px solid rgba(176,0,255,.3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
-.tb-controls{display:flex;align-items:center;gap:12px;flex-shrink:0}
-.status-tag{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:4px;font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:2px;transition:all .3s;background:rgba(0,0,0,.5);border:1px solid var(--line)}
-.status-tag.online{color:var(--green);border-color:var(--green);box-shadow:0 0 10px rgba(0,255,102,.2)}
-.status-tag.offline{color:var(--red);border-color:rgba(255,0,85,.3)}
-.status-led{width:8px;height:8px;border-radius:50%}
-.status-tag.online .status-led{background:var(--green);box-shadow:0 0 12px var(--green);animation:ledBlink 1.5s ease-in-out infinite}
-.status-tag.offline .status-led{background:var(--red)}
-@keyframes ledBlink{0%,100%{opacity:1}50%{opacity:.4}}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 24px;border-radius:6px;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border:none;transition:all .2s;font-family:var(--font-disp);position:relative;overflow:hidden;box-shadow:0 4px 15px rgba(0,0,0,.4)}
-.btn:active{transform:scale(.95)!important}
-.btn-cyan{background:linear-gradient(to bottom,var(--neon-cyan),#00a0b0);color:#000;border:1px solid #70ffff}
-.btn-cyan:hover{transform:translateY(-2px);filter:brightness(1.1)}
-.btn-green{background:rgba(0,255,102,.1);color:var(--green);border:1px solid rgba(0,255,102,.4)}
-.btn-green:hover{transform:translateY(-2px);background:rgba(0,255,102,.2)}
-.btn-red{background:rgba(255,0,85,.1);color:var(--red);border:1px solid rgba(255,0,85,.4)}
-.btn-red:hover{transform:translateY(-2px);background:rgba(255,0,85,.2)}
-.btn-amber{background:rgba(255,184,0,.1);color:var(--amber);border:1px solid rgba(255,184,0,.4)}
-.btn-amber:hover{transform:translateY(-2px);background:rgba(255,184,0,.2)}
-.btn-purple{background:rgba(176,0,255,.1);color:var(--neon-purple);border:1px solid rgba(176,0,255,.4)}
-.btn-purple:hover{transform:translateY(-2px);background:rgba(176,0,255,.2)}
-.btn-ghost{background:rgba(255,255,255,.05);color:var(--text-main);border:1px solid var(--line-bright)}
-.btn-ghost:hover{background:rgba(255,255,255,.1);border-color:#fff;transform:translateY(-2px)}
-.btn-sm{padding:10px 16px;font-size:12px}
-.btn-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-.page{flex:1;min-height:0;overflow-y:auto;padding:32px;display:none}
-.page.active{display:block;animation:pageEnter .4s var(--anim-smooth) forwards}
-@keyframes pageEnter{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:30px}
-.stat-block{background:var(--bg-panel);border:1px solid var(--line);border-radius:8px;padding:24px;position:relative;transition:all .3s;box-shadow:0 15px 35px rgba(0,0,0,.6);overflow:hidden}
-.stat-block:hover{transform:translateY(-4px);border-color:var(--line-bright)}
-.stat-block::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;opacity:.8}
-.stat-block.s-cyan::before{background:var(--neon-cyan)}
-.stat-block.s-purple::before{background:var(--neon-purple)}
-.stat-label{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:4px;color:var(--text-muted);margin-bottom:14px;text-transform:uppercase}
-.stat-value{font-family:var(--font-disp);font-size:46px;font-weight:700;line-height:1;margin-bottom:8px}
-.sv-cyan{color:var(--neon-cyan)}.sv-green{color:var(--green)}.sv-amber{color:var(--amber)}.sv-red{color:var(--red)}.sv-purple{color:var(--neon-purple)}
-.stat-sub{font-family:var(--font-mono);font-size:12px;color:var(--text-dark)}
-.panel{background:var(--bg-panel);backdrop-filter:blur(15px);border:1px solid var(--line);border-radius:8px;margin-bottom:24px;box-shadow:0 15px 40px rgba(0,0,0,.7);overflow:hidden}
-.panel-head{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.3);flex-wrap:wrap;gap:16px}
-.panel-title{display:flex;align-items:center;gap:12px;font-family:var(--font-disp);font-size:22px;font-weight:700;letter-spacing:3px;color:#fff}
-.panel-tag{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--neon-purple);padding:6px 12px;border:1px solid rgba(176,0,255,.4);border-radius:4px;background:rgba(176,0,255,.1)}
-.panel-body{padding:28px}
-.term-chrome{background:#030305;border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:12px}
-.term-dot{width:12px;height:12px;border-radius:50%}
-.term-title{flex:1;text-align:center;font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:4px;color:var(--text-dark);text-transform:uppercase}
-.terminal{background:#020203;position:relative;padding:20px;overflow-y:auto;font-family:var(--font-mono);font-size:14px;line-height:1.6}
-.log-row{display:flex;align-items:baseline;gap:16px;padding:4px 0}
-.log-row:hover{background:rgba(0,240,255,.05)}
-.log-ts{font-size:12px;color:var(--text-dark);flex-shrink:0}
-.log-tag{font-size:10px;padding:4px 8px;border-radius:2px;flex-shrink:0;text-transform:uppercase;font-weight:700;letter-spacing:2px}
-.log-tag.sys{background:rgba(0,119,255,.2);color:var(--neon-blue);border:1px solid rgba(0,119,255,.4)}
-.log-tag.err{background:rgba(255,0,85,.2);color:var(--red);border:1px solid rgba(255,0,85,.4)}
-.log-tag.ok{background:rgba(0,255,102,.2);color:var(--green);border:1px solid rgba(0,255,102,.4)}
-.log-tag.warn{background:rgba(255,184,0,.2);color:var(--amber);border:1px solid rgba(255,184,0,.4)}
-.log-tag.out{background:rgba(255,255,255,.1);color:var(--text-main)}
+
+.topbar{
+  height:60px;min-height:60px;background:var(--base);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 24px;gap:16px;
+  flex-shrink:0;
+}
+.topbar-left{display:flex;align-items:center;gap:14px;min-width:0}
+.mobile-menu-btn{display:none;background:var(--elevated);border:1px solid var(--border);color:var(--text-2);padding:7px 10px;border-radius:var(--radius);font-size:15px;cursor:pointer;transition:all .2s}
+.mobile-menu-btn:hover{border-color:var(--border-mid);color:var(--text)}
+
+.breadcrumb{display:flex;align-items:center;gap:8px;min-width:0}
+.bc-brand{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--text-3)}
+.bc-sep{color:var(--text-3);font-size:12px;opacity:.5}
+.bc-page{font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text)}
+.bc-bot{
+  font-family:var(--font-mono);font-size:11px;color:var(--blue);
+  background:var(--blue-dim);padding:3px 10px;border-radius:4px;
+  border:1px solid rgba(91,141,239,0.2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;
+}
+
+.topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+.status-pill{
+  display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:20px;
+  font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.5px;
+  transition:all .3s;border:1px solid var(--border);background:var(--elevated);
+}
+.status-pill.online{color:var(--mint);border-color:rgba(77,255,204,0.25);background:var(--mint-dim)}
+.status-pill.offline{color:var(--text-3);border-color:var(--border)}
+.status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.status-pill.online .status-dot{background:var(--mint);box-shadow:0 0 6px var(--mint-glow);animation:statusBlink 1.8s ease-in-out infinite}
+.status-pill.offline .status-dot{background:var(--text-3)}
+@keyframes statusBlink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ═══════════════════ BUTTONS ═══════════════════ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:8px 16px;border-radius:var(--radius);font-size:12px;font-weight:600;
+  letter-spacing:.3px;border:none;cursor:pointer;transition:all .18s ease;
+  font-family:var(--font-display);white-space:nowrap;position:relative;overflow:hidden;
+}
+.btn:active{transform:scale(0.96)!important}
+
+.btn-amber{background:var(--amber);color:#000;box-shadow:0 2px 12px var(--amber-glow)}
+.btn-amber:hover{filter:brightness(1.08);transform:translateY(-1px)}
+
+.btn-ghost{background:var(--elevated);color:var(--text-2);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--overlay);color:var(--text);border-color:var(--border-mid);transform:translateY(-1px)}
+
+.btn-mint{background:var(--mint-dim);color:var(--mint);border:1px solid rgba(77,255,204,0.25)}
+.btn-mint:hover{background:rgba(77,255,204,0.18);transform:translateY(-1px)}
+
+.btn-rose{background:var(--rose-dim);color:var(--rose);border:1px solid rgba(255,77,109,0.25)}
+.btn-rose:hover{background:rgba(255,77,109,0.2);transform:translateY(-1px)}
+
+.btn-blue{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(91,141,239,0.25)}
+.btn-blue:hover{background:rgba(91,141,239,0.2);transform:translateY(-1px)}
+
+.btn-sm{padding:6px 12px;font-size:11.5px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ═══════════════════ PAGES ═══════════════════ */
+.page{flex:1;min-height:0;overflow-y:auto;padding:28px;display:none}
+.page.active{display:block;animation:pageIn .3s var(--ease-out)}
+@keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ═══════════════════ STAT CARDS ═══════════════════ */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:20px;position:relative;overflow:hidden;transition:all .2s ease;
+}
+.stat-card:hover{border-color:var(--border-mid);transform:translateY(-2px);background:var(--elevated)}
+.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--stat-accent,var(--amber));opacity:.6}
+.stat-card-amber{--stat-accent:var(--amber)}
+.stat-card-mint{--stat-accent:var(--mint)}
+.stat-card-blue{--stat-accent:var(--blue)}
+.stat-card-rose{--stat-accent:var(--rose)}
+
+.stat-label{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-3);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.stat-label-dot{width:5px;height:5px;border-radius:50%;background:var(--stat-accent,var(--amber))}
+.stat-number{font-family:var(--font-display);font-size:38px;font-weight:800;line-height:1;margin-bottom:6px;color:var(--text)}
+.stat-number.online{color:var(--mint)}
+.stat-number.offline{color:var(--rose)}
+.stat-number.amber{color:var(--amber)}
+.stat-sub{font-family:var(--font-mono);font-size:10.5px;color:var(--text-3)}
+
+/* ═══════════════════ PANELS ═══════════════════ */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:20px;overflow:hidden}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border);
+  flex-wrap:wrap;gap:12px;background:var(--base);
+}
+.panel-title{font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--text);letter-spacing:.3px;display:flex;align-items:center;gap:10px}
+.panel-title-icon{width:26px;height:26px;border-radius:6px;background:var(--elevated);display:flex;align-items:center;justify-content:center;font-size:12px}
+.panel-badge{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--amber);background:var(--amber-dim);padding:3px 8px;border-radius:4px;border:1px solid rgba(232,168,85,0.25)}
+.panel-body{padding:20px}
+
+/* ═══════════════════ TERMINAL ═══════════════════ */
+.term-titlebar{
+  background:var(--void);border-bottom:1px solid var(--border);
+  padding:11px 16px;display:flex;align-items:center;gap:10px;
+}
+.term-traffic{display:flex;gap:6px}
+.term-traffic-dot{width:11px;height:11px;border-radius:50%}
+.term-name{flex:1;text-align:center;font-family:var(--font-mono);font-size:10px;letter-spacing:3px;color:var(--text-3);text-transform:uppercase}
+
+.terminal{
+  background:var(--void);padding:16px;overflow-y:auto;
+  font-family:var(--font-mono);font-size:13px;line-height:1.65;
+}
+.log-row{display:flex;align-items:baseline;gap:12px;padding:2px 0;border-radius:4px;transition:background .15s}
+.log-row:hover{background:rgba(255,255,255,0.025)}
+.log-ts{font-size:10.5px;color:var(--text-3);flex-shrink:0;min-width:56px}
+.log-badge{font-size:9.5px;padding:2px 6px;border-radius:3px;flex-shrink:0;text-transform:uppercase;font-weight:600;letter-spacing:1.5px;font-family:var(--font-mono)}
+.log-badge.sys{background:var(--blue-dim);color:var(--blue)}
+.log-badge.err{background:var(--rose-dim);color:var(--rose)}
+.log-badge.ok{background:var(--mint-dim);color:var(--mint)}
+.log-badge.warn{background:rgba(232,168,85,0.12);color:var(--amber)}
+.log-badge.out{background:var(--elevated);color:var(--text-3)}
 .log-msg{flex:1;word-break:break-all}
-.log-msg.sys{color:var(--neon-blue)}.log-msg.err{color:var(--red)}.log-msg.ok{color:var(--green)}.log-msg.warn{color:var(--amber)}.log-msg.out{color:var(--text-muted)}
-.term-input-wrap{display:flex;align-items:center;gap:16px;background:#050508;border-top:1px solid var(--line);padding:16px 24px;transition:all .3s}
-.term-input-wrap:focus-within{background:#0A0F1A;border-color:var(--neon-cyan)}
-.term-input{flex:1;background:none;border:none;outline:none;font-family:var(--font-mono);font-size:15px;color:var(--neon-cyan);caret-color:var(--neon-cyan)}
-.form-group{margin-bottom:24px}
-.form-label{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:3px;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px}
-.form-label::after{content:'';flex:1;height:1px;background:var(--line)}
-.form-input,.form-select,.form-textarea{width:100%;background:rgba(0,0,0,.5);border:1px solid var(--line);border-left:3px solid var(--line-bright);padding:16px 20px;font-size:16px;color:#fff;outline:none;font-family:var(--font-mono);transition:all .3s;border-radius:6px}
-.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--neon-cyan);border-left-color:var(--neon-cyan);background:rgba(0,240,255,.05)}
-.form-select option{background:var(--bg-void)}
-.form-textarea{resize:vertical;min-height:120px;line-height:1.7}
-.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
-.divider{font-family:var(--font-disp);font-size:18px;letter-spacing:2px;color:var(--neon-purple);border-bottom:1px solid var(--line);padding-bottom:8px;margin:30px 0 20px}
-.env-row{display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;margin-bottom:10px;align-items:center}
-.env-field{background:rgba(0,0,0,.5);border:1px solid var(--line);border-left:3px solid var(--line-bright);padding:12px 16px;font-family:var(--font-mono);font-size:13px;color:#fff;outline:none;width:100%;border-radius:4px}
-.env-field:focus{border-left-color:var(--neon-cyan)}
-.env-field.key-field{color:var(--amber)}
-.file-table{width:100%;border-collapse:separate;border-spacing:0;min-width:550px}
-.file-table th{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:4px;color:var(--text-dark);padding:16px 20px;border-bottom:1px solid var(--line-bright);text-align:left;font-weight:700}
-.file-table td{padding:16px 20px;font-size:15px;border-bottom:1px solid var(--line);vertical-align:middle;font-family:var(--font-mono)}
-.file-table tr:hover td{background:rgba(0,240,255,.05)}
-.file-name-cell{color:var(--neon-cyan);cursor:pointer;display:flex;align-items:center;gap:12px;font-weight:500;transition:all .2s}
-.file-name-cell:hover{color:#fff;transform:translateX(6px)}
-.file-ext-badge{font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:4px 8px;border:1px solid var(--line-bright);border-radius:4px;color:var(--text-muted);background:rgba(0,0,0,.5)}
-.drop-zone{border:2px dashed rgba(0,240,255,.4);padding:40px 24px;text-align:center;transition:all .3s;position:relative;background:rgba(0,0,0,.4);border-radius:6px}
-.drop-zone.dragging{border-color:var(--neon-cyan);background:rgba(0,240,255,.05);box-shadow:inset 0 0 40px rgba(0,240,255,.08)}
-.drop-icon{font-size:48px;margin-bottom:16px;display:block;color:var(--text-dark);transition:all .3s;pointer-events:none}
-.drop-zone.dragging .drop-icon{color:var(--neon-cyan);transform:translateY(-5px)}
-.drop-headline{font-family:var(--font-disp);font-size:28px;letter-spacing:4px;color:#fff;margin-bottom:8px;pointer-events:none}
-.drop-sub{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--text-dark)}
-.upload-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(0,0,0,.6);border:1px solid var(--line);border-radius:6px;margin-top:8px;font-family:var(--font-mono);font-size:12px;color:var(--text-muted);transition:border-color .3s}
-.upload-bar-wrap{flex:1;height:4px;background:var(--line);border-radius:2px;overflow:hidden}
-.upload-bar-fill{height:100%;background:var(--neon-cyan);border-radius:2px;transition:width .15s linear}
-.modal-veil{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
-.modal-veil.open{display:flex;animation:fadeIn .3s ease}
-.modal-box{background:var(--bg-panel);border:1px solid var(--line-bright);border-top:4px solid var(--neon-cyan);padding:40px;width:95%;max-width:600px;max-height:90vh;overflow-y:auto;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.9);animation:modalPop .4s var(--anim-spring)}
-.modal-box.wide{max-width:1000px}
-@keyframes modalPop{from{transform:scale(.95) translateY(30px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
-.modal-heading{font-family:var(--font-disp);font-size:36px;color:#fff;margin-bottom:32px;letter-spacing:4px;display:flex;align-items:center;gap:14px}
-.modal-heading-accent{color:var(--neon-cyan)}
-.modal-footer{display:flex;justify-content:flex-end;gap:16px;margin-top:32px;padding-top:24px;border-top:1px solid var(--line)}
-#loginOverlay{position:fixed;inset:0;background:var(--bg-void);z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column}
-#loginOverlay::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at center,rgba(0,240,255,.15) 0%,transparent 60%)}
-.login-card{background:rgba(10,15,26,.8);backdrop-filter:blur(30px);border:1px solid var(--line-bright);border-top:4px solid var(--neon-purple);padding:60px 50px;display:flex;flex-direction:column;width:90%;max-width:450px;border-radius:12px;animation:floatUp .8s var(--anim-spring);position:relative;z-index:1}
-.login-tabs{display:flex;margin-bottom:24px;border-bottom:1px solid var(--line)}
-.login-tab{flex:1;text-align:center;padding:12px;font-family:var(--font-mono);font-size:14px;font-weight:700;letter-spacing:2px;color:var(--text-dark);cursor:pointer;text-transform:uppercase;transition:all .3s}
-.login-tab.active{color:var(--neon-purple);border-bottom:2px solid var(--neon-purple);background:rgba(176,0,255,.05)}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes floatUp{from{transform:translateY(50px) scale(.95);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
-.code-editor{width:100%;min-height:550px;background:#020203;border:1px solid var(--line);border-radius:6px;border-left:4px solid var(--neon-blue);padding:20px;font-family:var(--font-mono);font-size:15px;color:#E0F2FE;outline:none;resize:vertical;line-height:1.7;caret-color:var(--neon-cyan);transition:all .3s}
-.code-editor:focus{border-left-color:var(--neon-cyan)}
-.danger-block{border:1px solid rgba(255,0,85,.4);border-left:4px solid var(--red);background:linear-gradient(90deg,rgba(255,0,85,.1),transparent);padding:24px;margin-top:24px;border-radius:8px}
-.res-item{margin-bottom:30px}
-.res-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
-.res-track{height:8px;background:rgba(0,0,0,.8);border:1px solid var(--line);border-radius:4px;overflow:hidden}
-.res-fill{height:100%;transition:width .8s ease}
-.toast-tray{position:fixed;bottom:32px;right:32px;z-index:10001;display:flex;flex-direction:column;gap:14px;pointer-events:none}
-.toast{background:var(--bg-panel);border:1px solid var(--line-bright);border-left:4px solid var(--neon-cyan);border-radius:6px;padding:16px 24px;font-size:14px;font-weight:600;color:#fff;font-family:var(--font-mono);animation:toastPop .4s var(--anim-spring);display:flex;align-items:center;gap:14px;box-shadow:0 10px 30px rgba(0,0,0,.8);pointer-events:all;text-transform:uppercase;letter-spacing:1px}
-.toast.success{border-left-color:var(--green)}.toast.error{border-left-color:var(--red)}.toast.info{border-left-color:var(--neon-blue)}
-@keyframes toastPop{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
-.subuser-item{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:rgba(0,0,0,.4);border:1px solid var(--line);border-radius:6px;margin-bottom:8px;font-family:var(--font-mono);font-size:14px}
-@media(max-width:850px){
-.sidebar{position:fixed;left:-320px;width:300px;transition:transform .4s var(--anim-spring);border-right:1px solid var(--line-bright)}
-.sidebar.open{transform:translateX(320px)}
-.sidebar .nav{display:none}
-.sidebar-footer{position:absolute;bottom:0;width:100%}
-.sidebar-close-btn{display:block}
-.mobile-bottom-nav{display:flex}
-.mobile-nav-toggle{display:block}
-.main{padding-bottom:90px}
-.topbar{height:auto;min-height:70px;padding:16px 20px;flex-direction:column;align-items:stretch;gap:12px}
-.topbar-main{display:flex;align-items:center;gap:16px;width:100%;justify-content:space-between}
-.tb-breadcrumb{flex:1;flex-wrap:wrap;margin-left:10px}
-.tb-page{font-size:20px}
-.tb-bot{max-width:120px;font-size:10px}
-.tb-controls{display:flex;flex-wrap:nowrap;overflow-x:auto;padding-bottom:8px;width:100%;justify-content:flex-start;border-top:1px solid var(--line);padding-top:12px;gap:8px;-webkit-overflow-scrolling:touch}
-.tb-controls::-webkit-scrollbar{display:none}
-.tb-controls .btn{white-space:nowrap;flex-shrink:0;padding:12px 16px;font-size:12px}
-.page{padding:10px}
-.stats-row{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-.stat-value{font-size:32px}
-.form-row-2{grid-template-columns:1fr;gap:16px}
-.panel-head{padding:14px 16px;flex-direction:column;align-items:flex-start;gap:10px}
-.panel-title{font-size:17px}
-.panel-body{padding:14px}
-.toast-tray{bottom:100px;right:12px;left:12px}
-.toast{justify-content:center;font-size:12px;padding:12px 16px}
-.file-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
-.file-table{min-width:0;width:100%;table-layout:fixed}
-.file-table th:nth-child(4),.file-table td:nth-child(4){display:none}
-.file-table th:nth-child(2),.file-table td:nth-child(2){display:none}
-.file-table th:nth-child(1){width:55%}
-.file-table th:nth-child(3){width:18%}
-.file-table th:nth-child(5){width:27%}
-.file-table th,.file-table td{padding:10px 8px;font-size:11px}
-.file-name-cell{font-size:11px;gap:5px}
-.file-table .btn-row{gap:4px;flex-wrap:nowrap}
-.file-table .btn.btn-sm{padding:7px 8px;font-size:10px;letter-spacing:0;min-width:0}
-.drop-zone{padding:28px 14px}
-.drop-icon{font-size:32px;margin-bottom:10px}
-.drop-headline{font-size:19px;letter-spacing:2px}
-.drop-sub{font-size:10px;letter-spacing:0;margin-bottom:20px!important}
-.drop-btns{flex-direction:column!important;gap:10px!important}
-.drop-btns .btn{width:100%}
-.upload-item{flex-wrap:wrap;padding:10px 12px}
-.upload-item .upload-bar-wrap{order:3;flex-basis:100%}
+.log-msg.sys{color:var(--blue)}
+.log-msg.err{color:var(--rose)}
+.log-msg.ok{color:var(--mint)}
+.log-msg.warn{color:var(--amber)}
+.log-msg.out{color:var(--text-2)}
+
+.term-input-area{
+  display:flex;align-items:center;gap:12px;
+  background:var(--base);border-top:1px solid var(--border);
+  padding:12px 16px;transition:all .2s;
+}
+.term-input-area:focus-within{background:var(--surface);border-top-color:var(--amber)}
+.term-prompt{font-family:var(--font-mono);font-size:14px;color:var(--amber);flex-shrink:0;animation:cursorAnim 1.2s step-end infinite}
+@keyframes cursorAnim{0%,100%{opacity:1}50%{opacity:0.3}}
+.term-input{flex:1;background:none;border:none;outline:none;font-family:var(--font-mono);font-size:13.5px;color:var(--text);caret-color:var(--amber)}
+.term-input::placeholder{color:var(--text-3)}
+
+/* ═══════════════════ FORMS ═══════════════════ */
+.form-group{margin-bottom:20px}
+.form-label{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:10px;font-weight:500;letter-spacing:2px;
+  color:var(--text-3);text-transform:uppercase;margin-bottom:8px;
+}
+.form-label::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.form-input,.form-select,.form-textarea{
+  width:100%;background:var(--elevated);border:1px solid var(--border);
+  border-radius:var(--radius);padding:11px 14px;font-size:13.5px;
+  color:var(--text);outline:none;font-family:var(--font-mono);transition:all .2s;
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{
+  border-color:rgba(232,168,85,0.5);background:var(--overlay);box-shadow:0 0 0 3px rgba(232,168,85,0.08);
+}
+.form-input::placeholder,.form-textarea::placeholder{color:var(--text-3)}
+.form-select option{background:var(--base)}
+.form-textarea{resize:vertical;min-height:110px;line-height:1.6}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+
+.section-divider{
+  font-family:var(--font-display);font-size:13px;font-weight:700;letter-spacing:.5px;
+  color:var(--text);border-bottom:1px solid var(--border);padding-bottom:10px;margin:28px 0 18px;
+  display:flex;align-items:center;gap:10px;
+}
+.section-divider::before{content:'';width:3px;height:14px;background:var(--amber);border-radius:2px}
+
+/* ═══════════════════ ENV ROWS ═══════════════════ */
+.env-row{display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;margin-bottom:8px;align-items:center}
+.env-field{
+  background:var(--elevated);border:1px solid var(--border);border-radius:var(--radius);
+  padding:9px 12px;font-family:var(--font-mono);font-size:12.5px;color:var(--text);
+  outline:none;width:100%;transition:border-color .2s;
+}
+.env-field:focus{border-color:rgba(232,168,85,0.4)}
+.env-key{color:var(--amber)}
+
+/* ═══════════════════ FILE MANAGER ═══════════════════ */
+.file-table{width:100%;border-collapse:separate;border-spacing:0;min-width:520px}
+.file-table th{
+  font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:2.5px;
+  color:var(--text-3);padding:11px 14px;border-bottom:1px solid var(--border);text-align:left;
+  font-weight:500;background:var(--base);
+}
+.file-table td{
+  padding:11px 14px;font-size:13px;border-bottom:1px solid var(--border);
+  vertical-align:middle;font-family:var(--font-mono);
+}
+.file-table tr:last-child td{border-bottom:none}
+.file-table tr:hover td{background:rgba(255,255,255,0.02)}
+.file-name-link{
+  display:flex;align-items:center;gap:8px;color:var(--text-2);cursor:pointer;
+  transition:all .18s;font-weight:400;overflow:hidden;
+}
+.file-name-link:hover{color:var(--amber);transform:translateX(3px)}
+.file-icon{font-size:13px;flex-shrink:0;opacity:.7}
+.file-name-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.file-type-chip{
+  font-size:9.5px;letter-spacing:1px;text-transform:uppercase;
+  padding:2px 7px;border:1px solid var(--border-mid);border-radius:4px;
+  color:var(--text-3);background:var(--elevated);
+}
+
+/* ═══════════════════ UPLOAD ═══════════════════ */
+.drop-zone{
+  border:2px dashed var(--border-mid);padding:36px 24px;text-align:center;
+  transition:all .3s var(--ease-out);background:transparent;border-radius:var(--radius-lg);cursor:pointer;
+}
+.drop-zone.dragging{border-color:var(--amber);background:var(--amber-dim);box-shadow:0 0 0 4px rgba(232,168,85,0.08)}
+.drop-icon{font-size:36px;margin-bottom:12px;display:block;color:var(--text-3);transition:all .3s;pointer-events:none}
+.drop-zone.dragging .drop-icon{color:var(--amber);transform:translateY(-4px)}
+.drop-title{font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px;pointer-events:none}
+.drop-hint{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;color:var(--text-3);margin-bottom:20px;pointer-events:none}
+
+.upload-row{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:var(--elevated);border:1px solid var(--border);
+  border-radius:var(--radius);margin-top:8px;
+  font-family:var(--font-mono);font-size:11.5px;color:var(--text-2);
+}
+.upload-bar-wrap{flex:1;height:3px;background:var(--overlay);border-radius:2px;overflow:hidden}
+.upload-bar-fill{height:100%;background:var(--amber);border-radius:2px;transition:width .12s linear}
+
+/* ═══════════════════ RESOURCES ═══════════════════ */
+.res-item{margin-bottom:24px}
+.res-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.res-label{font-family:var(--font-mono);font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--text-3)}
+.res-value{font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--text)}
+.res-track{height:6px;background:var(--overlay);border-radius:4px;overflow:hidden}
+.res-fill{height:100%;border-radius:4px;transition:width 1s ease}
+
+/* ═══════════════════ MODALS ═══════════════════ */
+.modal-veil{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,0.65);z-index:10000;
+  align-items:center;justify-content:center;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+}
+.modal-veil.open{display:flex;animation:veilIn .25s ease}
+@keyframes veilIn{from{opacity:0}to{opacity:1}}
+
+.modal{
+  background:var(--surface);border:1px solid var(--border-mid);
+  border-radius:16px;padding:32px;width:95%;max-width:560px;
+  max-height:90vh;overflow-y:auto;
+  box-shadow:0 24px 80px rgba(0,0,0,0.8),0 0 0 1px rgba(255,255,255,0.04);
+  animation:modalIn .3s var(--ease-spring);
+}
+.modal.wide{max-width:960px}
+@keyframes modalIn{from{transform:scale(0.94) translateY(20px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+
+.modal-title{
+  font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--text);
+  margin-bottom:24px;letter-spacing:.3px;display:flex;align-items:center;gap:10px;
+}
+.modal-title-accent{color:var(--amber)}
+.modal-footer{
+  display:flex;justify-content:flex-end;gap:10px;margin-top:24px;
+  padding-top:20px;border-top:1px solid var(--border);
+}
+
+/* ═══════════════════ LOGIN ═══════════════════ */
+#loginOverlay{
+  position:fixed;inset:0;background:var(--void);z-index:99999;
+  display:flex;align-items:center;justify-content:center;
+}
+#loginOverlay::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 30% 40%,rgba(232,168,85,0.06) 0%,transparent 60%),
+             radial-gradient(ellipse at 80% 70%,rgba(77,255,204,0.04) 0%,transparent 50%);
+}
+
+.login-wrap{
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:48px 44px;width:90%;max-width:420px;
+  box-shadow:0 32px 80px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.03);
+  animation:loginReveal .7s var(--ease-spring);position:relative;z-index:1;
+}
+@keyframes loginReveal{from{transform:translateY(30px) scale(0.96);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:8px;justify-content:center}
+.login-hex{width:40px;height:40px;background:var(--amber);border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 30px var(--amber-glow)}
+.login-hex svg{width:22px;height:22px;fill:#000}
+.login-brand{font-family:var(--font-display);font-size:26px;font-weight:800;color:var(--text)}
+.login-tagline{font-family:var(--font-mono);font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--text-3);text-align:center;margin-bottom:28px}
+
+.auth-tabs{display:flex;background:var(--elevated);border-radius:var(--radius);padding:3px;margin-bottom:22px;border:1px solid var(--border)}
+.auth-tab{
+  flex:1;text-align:center;padding:8px 12px;font-family:var(--font-display);font-size:12px;
+  font-weight:600;letter-spacing:.5px;color:var(--text-3);cursor:pointer;border-radius:6px;transition:all .2s;
+}
+.auth-tab.active{background:var(--amber);color:#000;box-shadow:0 2px 8px var(--amber-glow)}
+
+/* ═══════════════════ CODE EDITOR ═══════════════════ */
+.code-editor{
+  width:100%;min-height:520px;background:var(--void);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px;font-family:var(--font-mono);font-size:13.5px;
+  color:var(--text);outline:none;resize:vertical;line-height:1.7;caret-color:var(--amber);
+  transition:border-color .2s;
+}
+.code-editor:focus{border-color:rgba(232,168,85,0.4)}
+
+/* ═══════════════════ DANGER ZONE ═══════════════════ */
+.danger-zone{
+  border:1px solid rgba(255,77,109,0.2);border-left:3px solid var(--rose);
+  background:linear-gradient(90deg,rgba(255,77,109,0.05),transparent);
+  padding:20px;border-radius:var(--radius-lg);margin-top:20px;
+}
+
+/* ═══════════════════ TOASTS ═══════════════════ */
+.toast-stack{position:fixed;bottom:28px;right:28px;z-index:20000;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+.toast{
+  background:var(--elevated);border:1px solid var(--border-mid);border-radius:10px;
+  padding:13px 18px;font-size:13px;font-weight:500;color:var(--text);
+  font-family:var(--font-display);
+  box-shadow:0 8px 24px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.04);
+  display:flex;align-items:center;gap:10px;pointer-events:all;
+  animation:toastIn .35s var(--ease-spring);min-width:260px;
+}
+.toast-icon{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.toast.success .toast-icon{background:var(--mint-dim);color:var(--mint)}
+.toast.error .toast-icon{background:var(--rose-dim);color:var(--rose)}
+.toast.info .toast-icon{background:var(--blue-dim);color:var(--blue)}
+.toast-close{margin-left:auto;cursor:pointer;color:var(--text-3);font-size:14px;transition:color .2s}
+.toast-close:hover{color:var(--text)}
+@keyframes toastIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ═══════════════════ SUBUSER LIST ═══════════════════ */
+.subuser-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 14px;background:var(--elevated);border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:6px;font-family:var(--font-mono);font-size:13px;
+}
+
+/* ═══════════════════ RESPONSIVE ═══════════════════ */
+@media(max-width:860px){
+  .sidebar{position:fixed;left:0;transform:translateX(-100%);width:272px;z-index:9600}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-overlay{display:block}
+  .sidebar .nav{display:none}
+  .sidebar-close-btn{display:flex}
+  .mobile-bottom-nav{display:flex}
+  .mobile-menu-btn{display:flex}
+  .main{padding-bottom:88px}
+  .topbar{padding:0 16px;height:56px}
+  .bc-brand{display:none}
+  .bc-sep{display:none}
+  .bc-bot{max-width:110px;font-size:10px}
+  .topbar-right{gap:6px}
+  .topbar-right .status-pill span{display:none}
+  .topbar-right .btn span{display:none}
+  .topbar-right .btn{padding:7px 10px}
+  .page{padding:14px}
+  .stats-grid{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .stat-number{font-size:28px}
+  .form-row-2{grid-template-columns:1fr;gap:14px}
+  .panel-head{padding:12px 14px}
+  .panel-body{padding:14px}
+  .panel-title{font-size:13px}
+  .file-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .file-table{min-width:0;width:100%}
+  .file-table th:nth-child(4),.file-table td:nth-child(4){display:none}
+  .file-table th:nth-child(2),.file-table td:nth-child(2){display:none}
+  .drop-title{font-size:18px}
+  .toast-stack{bottom:88px;right:12px;left:12px}
+  .toast{min-width:0;width:100%}
 }
 @media(max-width:480px){
-.stats-row{grid-template-columns:1fr;gap:8px}
-.stat-value{font-size:28px}
-.login-card{padding:32px 16px;width:96%}
-.modal-box{padding:18px 14px}
-.modal-heading{font-size:20px;margin-bottom:14px}
-.drop-zone{padding:20px 10px}
-.drop-headline{font-size:16px;letter-spacing:1px}
-.page{padding:8px}
-.panel-head{padding:10px 12px}
+  .stats-grid{grid-template-columns:1fr}
+  .stat-number{font-size:26px}
+  .login-wrap{padding:32px 20px;width:96%}
+  .modal{padding:20px 16px}
+  .modal-title{font-size:20px;margin-bottom:16px}
+  .page{padding:10px}
+  .topbar-right .status-pill{display:none}
 }
 </style>
 </head>
 <body>
+<!-- Login overlay -->
 <div id="loginOverlay">
-  <div class="login-card">
-    <div style="font-family:var(--font-disp);font-size:48px;font-weight:900;text-align:center;margin-bottom:5px;background:linear-gradient(90deg,#fff,var(--neon-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent">VORTEX</div>
-    <p style="font-family:var(--font-mono);color:var(--text-dark);font-size:12px;letter-spacing:6px;text-transform:uppercase;text-align:center;margin-bottom:20px">HOSTING PLATFORM</p>
-    <div class="login-tabs">
-      <div class="login-tab active" id="tabLogin" onclick="switchAuthMode('login')">LOGIN</div>
-      <div class="login-tab" id="tabRegister" onclick="switchAuthMode('register')">REGISTER</div>
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="login-hex">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <span class="login-brand">Vortex</span>
     </div>
-    <input class="form-input" id="authUsername" placeholder="USERNAME" style="text-align:center;letter-spacing:2px;padding:16px;margin-bottom:12px" onkeydown="if(event.key==='Enter')submitAuth()">
-    <input type="password" class="form-input" id="authPassword" placeholder="PASSWORD" style="text-align:center;letter-spacing:2px;padding:16px;margin-bottom:12px" onkeydown="if(event.key==='Enter')submitAuth()">
-    <button class="btn btn-cyan" id="authBtn" style="width:100%;padding:18px;font-size:16px;margin-top:10px;letter-spacing:4px" onclick="submitAuth()">AUTHENTICATE</button>
+    <div class="login-tagline">Hosting Platform</div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tabLogin" onclick="switchAuthMode('login')">Sign In</div>
+      <div class="auth-tab" id="tabRegister" onclick="switchAuthMode('register')">Register</div>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <input class="form-input" id="authUsername" placeholder="Username" autocomplete="username" style="font-size:14px" onkeydown="if(event.key==='Enter')submitAuth()">
+    </div>
+    <div class="form-group" style="margin-bottom:20px">
+      <input type="password" class="form-input" id="authPassword" placeholder="Password" autocomplete="current-password" style="font-size:14px" onkeydown="if(event.key==='Enter')submitAuth()">
+    </div>
+    <button class="btn btn-amber" id="authBtn" style="width:100%;padding:13px;font-size:14px;letter-spacing:.5px" onclick="submitAuth()">Sign In</button>
   </div>
 </div>
+
 <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
 <div id="app">
+  <!-- Sidebar -->
   <aside class="sidebar">
     <button class="sidebar-close-btn" onclick="toggleSidebar()">✕</button>
     <div class="logo">
-      <div class="logo-lockup"><div class="logo-wordmark">VORTEX</div></div>
-      <div style="font-size:10px;color:var(--text-dark);letter-spacing:6px;font-family:var(--font-mono);text-transform:uppercase;font-weight:700">Admin Interface</div>
+      <div class="logo-mark">
+        <div class="logo-hex">
+          <svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:#000;stroke-width:2.5;stroke-linecap:round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <span class="logo-name">Vortex</span>
+      </div>
+      <div class="logo-sub">Hosting Platform</div>
     </div>
+
     <nav class="nav">
-      <div class="nav-label">System</div>
-      <div class="nav-item active" data-page="dashboard" onclick="navTo('dashboard',this)"><span class="nav-glyph">◈</span> Dashboard</div>
-      <div class="nav-item" data-page="console" onclick="navTo('console',this)"><span class="nav-glyph">_</span> Console</div>
-      <div class="nav-item" data-page="files" onclick="navTo('files',this)"><span class="nav-glyph">≡</span> File Manager</div>
-      <div class="nav-label" style="margin-top:24px">Configuration</div>
-      <div class="nav-item" data-page="env" onclick="navTo('env',this)"><span class="nav-glyph">⊛</span> Environment</div>
-      <div class="nav-item" data-page="settings" onclick="navTo('settings',this)"><span class="nav-glyph">⚙</span> Settings</div>
-      <div class="nav-item" data-page="resources" onclick="navTo('resources',this)"><span class="nav-glyph">▣</span> Resources</div>
+      <div class="nav-section">System</div>
+      <div class="nav-item active" data-page="dashboard" onclick="navTo('dashboard',this)">
+        <span class="nav-icon">⬡</span> Dashboard
+      </div>
+      <div class="nav-item" data-page="console" onclick="navTo('console',this)">
+        <span class="nav-icon">▸</span> Console
+      </div>
+      <div class="nav-item" data-page="files" onclick="navTo('files',this)">
+        <span class="nav-icon">⊞</span> Files
+      </div>
+      <div class="nav-section">Configure</div>
+      <div class="nav-item" data-page="env" onclick="navTo('env',this)">
+        <span class="nav-icon">◎</span> Environment
+      </div>
+      <div class="nav-item" data-page="settings" onclick="navTo('settings',this)">
+        <span class="nav-icon">◈</span> Settings
+      </div>
+      <div class="nav-item" data-page="resources" onclick="navTo('resources',this)">
+        <span class="nav-icon">▣</span> Resources
+      </div>
     </nav>
-    <div class="bot-section-header"><span class="bot-section-label">Instances</span><span class="bot-count-badge" id="botCount">0</span></div>
-    <div class="new-bot-btn" onclick="openCreateModal()"><span style="font-size:18px">+</span> DEPLOY NEW</div>
+
+    <div class="instances-header">
+      <span class="instances-label">Instances</span>
+      <span class="instances-count" id="botCount">0</span>
+    </div>
+    <div class="new-bot-btn" onclick="openCreateModal()">
+      <div class="new-bot-btn-icon">+</div>
+      Deploy New Instance
+    </div>
     <div class="bot-list" id="botList"></div>
+
     <div class="sidebar-footer">
-      <span class="footer-brand" onclick="logout()">LOGOUT</span>
-      <span class="footer-clock" id="clock">00:00:00</span>
+      <button class="logout-btn" onclick="logout()">Sign Out</button>
+      <span class="sidebar-clock" id="clock">00:00:00</span>
     </div>
   </aside>
+
+  <!-- Main Content -->
   <main class="main">
     <div class="topbar">
-      <div class="topbar-main">
-        <button class="mobile-nav-toggle" onclick="toggleSidebar()">☰</button>
-        <div class="tb-breadcrumb">
-          <span class="tb-section">VORTEX</span><span class="tb-slash">/</span>
-          <span class="tb-page" id="tbPage">DASHBOARD</span><span class="tb-slash">·</span>
-          <span class="tb-bot" id="tbBot">— SELECT INSTANCE —</span>
+      <div class="topbar-left">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="breadcrumb">
+          <span class="bc-brand">Vortex</span>
+          <span class="bc-sep">/</span>
+          <span class="bc-page" id="tbPage">Dashboard</span>
+          <span class="bc-sep">·</span>
+          <span class="bc-bot" id="tbBot">Select Instance</span>
         </div>
       </div>
-      <div class="tb-controls">
-        <div class="status-tag offline" id="statusTag"><div class="status-led"></div><span id="statusText">OFFLINE</span></div>
-        <button class="btn btn-green btn-sm" onclick="startBot()">▶ START</button>
-        <button class="btn btn-red btn-sm" onclick="stopBot()">■ STOP</button>
-        <button class="btn btn-amber btn-sm" onclick="restartBot()">↺ RESTART</button>
+      <div class="topbar-right">
+        <div class="status-pill offline" id="statusTag">
+          <div class="status-dot"></div>
+          <span id="statusText">Offline</span>
+        </div>
+        <button class="btn btn-mint btn-sm" onclick="startBot()"><span>▶</span> <span>Start</span></button>
+        <button class="btn btn-rose btn-sm" onclick="stopBot()"><span>■</span> <span>Stop</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="restartBot()"><span>↺</span> <span>Restart</span></button>
       </div>
     </div>
+
+    <!-- Dashboard -->
     <div class="page active" id="page-dashboard">
-      <div class="stats-row">
-        <div class="stat-block s-cyan"><div class="stat-label">Status</div><div class="stat-value sv-red" id="sStat">OFFLINE</div><div class="stat-sub" id="sStatSub">No active process</div></div>
-        <div class="stat-block s-purple"><div class="stat-label">Uptime</div><div class="stat-value sv-purple" id="sUptime">—</div><div class="stat-sub">HH:MM:SS</div></div>
-        <div class="stat-block s-cyan"><div class="stat-label">Sys CPU</div><div class="stat-value sv-cyan" id="sCpu">—</div><div class="stat-sub">Load Average</div></div>
-        <div class="stat-block s-purple"><div class="stat-label">Sys Memory</div><div class="stat-value sv-purple" id="sMem">—</div><div class="stat-sub">RAM Usage</div></div>
+      <div class="stats-grid">
+        <div class="stat-card stat-card-mint">
+          <div class="stat-label"><span class="stat-label-dot"></span>Status</div>
+          <div class="stat-number offline" id="sStat">Offline</div>
+          <div class="stat-sub" id="sStatSub">No active process</div>
+        </div>
+        <div class="stat-card stat-card-amber">
+          <div class="stat-label"><span class="stat-label-dot" style="background:var(--amber)"></span>Uptime</div>
+          <div class="stat-number amber" id="sUptime">—</div>
+          <div class="stat-sub">HH:MM:SS</div>
+        </div>
+        <div class="stat-card stat-card-blue">
+          <div class="stat-label"><span class="stat-label-dot" style="background:var(--blue)"></span>CPU</div>
+          <div class="stat-number" style="color:var(--blue)" id="sCpu">—</div>
+          <div class="stat-sub">Utilization</div>
+        </div>
+        <div class="stat-card stat-card-rose">
+          <div class="stat-label"><span class="stat-label-dot" style="background:var(--rose)"></span>Memory</div>
+          <div class="stat-number" style="color:var(--rose);font-size:28px" id="sMem">—</div>
+          <div class="stat-sub">RAM Used</div>
+        </div>
       </div>
+
       <div class="panel">
-        <div class="panel-head"><div class="panel-title">LAUNCH CONTROL</div><span class="panel-tag">Operations</span></div>
+        <div class="panel-head">
+          <div class="panel-title">
+            <div class="panel-title-icon">▶</div>
+            Launch Control
+          </div>
+          <span class="panel-badge">Operations</span>
+        </div>
         <div class="panel-body">
-          <div class="form-row-2" style="margin-bottom:24px"><div class="form-group" style="margin:0"><label class="form-label">Startup File</label><input class="form-input" id="sfInput" value="main.py" placeholder="main.py"></div></div>
+          <div style="max-width:360px;margin-bottom:20px">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Startup File</label>
+              <input class="form-input" id="sfInput" value="main.py" placeholder="main.py">
+            </div>
+          </div>
           <div class="btn-row">
-            <button class="btn btn-cyan" onclick="startBot()">▶ Start Process</button>
-            <button class="btn btn-red" onclick="stopBot()">■ Stop</button>
-            <button class="btn btn-amber" onclick="restartBot()">↺ Restart</button>
-            <button class="btn btn-ghost" onclick="killBot()" style="margin-left:auto">☠ Force Kill</button>
+            <button class="btn btn-amber" onclick="startBot()">▶ Start Process</button>
+            <button class="btn btn-rose" onclick="stopBot()">■ Stop</button>
+            <button class="btn btn-ghost" onclick="restartBot()">↺ Restart</button>
+            <button class="btn btn-ghost" onclick="killBot()" style="margin-left:auto;color:var(--rose)">✕ Force Kill</button>
           </div>
         </div>
       </div>
+
       <div class="panel">
-        <div class="panel-head"><div class="panel-title">LIVE FEED</div><button class="btn btn-ghost btn-sm" onclick="navTo('console',null)">Full Console →</button></div>
-        <div class="panel-body" style="padding:0">
-          <div class="term-chrome" style="border:none;border-bottom:1px solid rgba(255,255,255,.05)">
-            <div class="term-dot" style="background:#FF0055"></div><div class="term-dot" style="background:#FFB800"></div><div class="term-dot" style="background:#00FF66"></div>
-            <div class="term-title">STDOUT</div>
-          </div>
-          <div class="terminal" id="miniTerm" style="height:250px;border:none"></div>
+        <div class="panel-head">
+          <div class="panel-title"><div class="panel-title-icon">≡</div> Live Output</div>
+          <button class="btn btn-ghost btn-sm" onclick="navTo('console',null)">Full Console →</button>
         </div>
+        <div class="term-titlebar">
+          <div class="term-traffic">
+            <div class="term-traffic-dot" style="background:#FF5F57"></div>
+            <div class="term-traffic-dot" style="background:#FFBD2E"></div>
+            <div class="term-traffic-dot" style="background:#28CA41"></div>
+          </div>
+          <div class="term-name">stdout</div>
+        </div>
+        <div class="terminal" id="miniTerm" style="height:220px"></div>
       </div>
     </div>
+
+    <!-- Console -->
     <div class="page" id="page-console">
       <div class="panel">
-        <div class="panel-head"><div class="panel-title">PROCESS CONSOLE</div>
+        <div class="panel-head">
+          <div class="panel-title"><div class="panel-title-icon">_</div> Process Console</div>
           <div class="btn-row">
             <button class="btn btn-ghost btn-sm" onclick="clearConsole()">⊘ Clear</button>
             <button class="btn btn-ghost btn-sm" onclick="exportLogs()">↓ Export</button>
           </div>
         </div>
-        <div class="term-chrome">
-          <div class="term-dot" style="background:#FF0055"></div><div class="term-dot" style="background:#FFB800"></div><div class="term-dot" style="background:#00FF66"></div>
-          <div class="term-title" id="termTitle">NO INSTANCE SELECTED</div>
+        <div class="term-titlebar">
+          <div class="term-traffic">
+            <div class="term-traffic-dot" style="background:#FF5F57"></div>
+            <div class="term-traffic-dot" style="background:#FFBD2E"></div>
+            <div class="term-traffic-dot" style="background:#28CA41"></div>
+          </div>
+          <div class="term-name" id="termTitle">No Instance Selected</div>
         </div>
-        <div class="terminal" id="mainTerm" style="height:500px;border-top:none"></div>
-        <div class="term-input-wrap">
-          <span style="font-family:var(--font-mono);font-size:18px;color:var(--neon-cyan);flex-shrink:0">❯</span>
-          <input class="term-input" id="termIn" placeholder="Send to stdin..." onkeydown="if(event.key==='Enter')sendInput()">
-          <button class="btn btn-cyan" onclick="sendInput()">Send</button>
+        <div class="terminal" id="mainTerm" style="height:460px"></div>
+        <div class="term-input-area">
+          <span class="term-prompt">❯</span>
+          <input class="term-input" id="termIn" placeholder="Send input to stdin..." onkeydown="if(event.key==='Enter')sendInput()">
+          <button class="btn btn-amber btn-sm" onclick="sendInput()">Send</button>
         </div>
       </div>
     </div>
+
+    <!-- Files -->
     <div class="page" id="page-files">
       <input type="file" multiple id="fileUploadInput" style="display:none" onchange="handleUpload(this.files,false)">
       <input type="file" webkitdirectory directory multiple id="folderUploadInput" style="display:none" onchange="handleUpload(this.files,true)">
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-title">FILE MANAGER</div>
+          <div class="panel-title"><div class="panel-title-icon">⊞</div> File Manager</div>
           <div class="btn-row">
             <button class="btn btn-ghost btn-sm" onclick="openNewFileModal()">+ New File</button>
-            <button class="btn btn-cyan btn-sm" onclick="loadFiles()">↻ Refresh</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadFiles()">↻ Refresh</button>
           </div>
         </div>
-        <div class="file-table-wrap" style="padding:8px 0">
+        <div class="file-table-wrap">
           <table class="file-table">
-            <thead><tr><th>Filename</th><th>Type</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Filename</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Modified</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody id="fileList"></tbody>
           </table>
         </div>
-        <div style="border-top:1px solid var(--line);padding:20px 16px">
+        <div style="padding:16px;border-top:1px solid var(--border)">
           <div class="drop-zone" id="dropZone">
-            <span class="drop-icon">⇪</span>
-            <div class="drop-headline">DROP FILES HERE</div>
-            <div class="drop-sub" style="margin-bottom:24px">OR USE THE BUTTONS BELOW · ZIP AUTO-EXTRACTED · FOLDER STRUCTURE PRESERVED</div>
-            <div class="drop-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;position:relative;z-index:5">
-              <button class="btn btn-cyan" onclick="event.stopPropagation();document.getElementById('fileUploadInput').click()">⇪ Upload Files</button>
-              <button class="btn btn-purple" onclick="event.stopPropagation();document.getElementById('folderUploadInput').click()">📁 Upload Folder</button>
+            <span class="drop-icon">⬆</span>
+            <div class="drop-title">Drop files here</div>
+            <div class="drop-hint" style="margin-bottom:18px">ZIP auto-extracted · Folder structure preserved</div>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;position:relative;z-index:5">
+              <button class="btn btn-amber" onclick="event.stopPropagation();document.getElementById('fileUploadInput').click()">Upload Files</button>
+              <button class="btn btn-ghost" onclick="event.stopPropagation();document.getElementById('folderUploadInput').click()">Upload Folder</button>
             </div>
           </div>
-          <div id="uploadProgress" style="margin-top:12px"></div>
+          <div id="uploadProgress" style="margin-top:10px"></div>
         </div>
       </div>
     </div>
+
+    <!-- Environment -->
     <div class="page" id="page-env">
       <div class="panel">
-        <div class="panel-head"><div class="panel-title">ENVIRONMENT VARIABLES</div><button class="btn btn-cyan btn-sm" onclick="saveEnv()">Save Variables</button></div>
+        <div class="panel-head">
+          <div class="panel-title"><div class="panel-title-icon">◎</div> Environment Variables</div>
+          <button class="btn btn-amber btn-sm" onclick="saveEnv()">Save Variables</button>
+        </div>
         <div class="panel-body">
-          <p style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);letter-spacing:1px;margin-bottom:24px">Secure keys injected into the process at startup.</p>
-          <div class="env-row" style="margin-bottom:12px">
-            <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:4px;color:var(--text-dark);text-transform:uppercase">KEY</span>
-            <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:4px;color:var(--text-dark);text-transform:uppercase">VALUE</span><span></span>
+          <p style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);letter-spacing:.5px;margin-bottom:20px">Injected into the process environment at startup.</p>
+          <div class="env-row" style="margin-bottom:10px">
+            <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--text-3);text-transform:uppercase">Key</span>
+            <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--text-3);text-transform:uppercase">Value</span>
+            <span></span>
           </div>
           <div id="envRows"></div>
-          <button class="btn btn-ghost" onclick="addEnvRow('','')" style="margin-top:16px">+ Add Row</button>
+          <button class="btn btn-ghost btn-sm" onclick="addEnvRow('','')" style="margin-top:12px">+ Add Row</button>
         </div>
       </div>
     </div>
+
+    <!-- Settings -->
     <div class="page" id="page-settings">
       <div class="panel">
-        <div class="panel-head"><div class="panel-title">INSTANCE CONFIGURATION</div></div>
+        <div class="panel-head">
+          <div class="panel-title"><div class="panel-title-icon">◈</div> Instance Settings</div>
+        </div>
         <div class="panel-body">
-          <div class="form-group"><label class="form-label">Instance Name</label><input class="form-input" id="stName" placeholder="My Server"></div>
-          <div class="form-group"><label class="form-label">Startup File</label><input class="form-input" id="stStartup" placeholder="main.py"></div>
-          <div class="form-group"><label class="form-label">Crash Recovery</label><select class="form-select" id="stAR"><option value="false">Disabled</option><option value="true">Auto Restart on crash</option></select></div>
-          <button class="btn btn-cyan" onclick="saveSettings()" style="margin-top:16px">Save Configuration</button>
-          <div class="divider" id="accessMgmtTitle">ACCESS MANAGEMENT</div>
+          <div class="form-row-2">
+            <div class="form-group"><label class="form-label">Instance Name</label><input class="form-input" id="stName" placeholder="My Server"></div>
+            <div class="form-group"><label class="form-label">Startup File</label><input class="form-input" id="stStartup" placeholder="main.py"></div>
+          </div>
+          <div class="form-group"><label class="form-label">Crash Recovery</label>
+            <select class="form-select" id="stAR">
+              <option value="false">Disabled</option>
+              <option value="true">Auto-restart on crash</option>
+            </select>
+          </div>
+          <button class="btn btn-amber" onclick="saveSettings()">Save Configuration</button>
+
+          <div class="section-divider" id="accessMgmtTitle">Access Management</div>
           <div id="accessMgmtSection">
-            <div class="form-group"><label class="form-label">Grant Access to User</label>
-              <div style="display:flex;gap:12px"><input class="form-input" id="newSubuser" placeholder="Enter username..."><button class="btn btn-purple" onclick="addSubuser()">Grant</button></div>
+            <div class="form-group">
+              <label class="form-label">Grant Access</label>
+              <div style="display:flex;gap:10px">
+                <input class="form-input" id="newSubuser" placeholder="Enter username...">
+                <button class="btn btn-ghost" onclick="addSubuser()">Grant</button>
+              </div>
             </div>
             <div id="subuserList"></div>
           </div>
         </div>
       </div>
-      <div class="danger-block" id="dangerZoneSection">
-        <div style="font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:2px;color:var(--red);margin-bottom:10px">⚠ CRITICAL ACTION</div>
-        <div style="font-size:14px;color:var(--text-muted);margin-bottom:16px">Permanently deletes this instance and all associated files.</div>
-        <button class="btn btn-red" onclick="deleteBot()">☠ DESTROY INSTANCE</button>
+      <div class="danger-zone" id="dangerZoneSection">
+        <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--rose);margin-bottom:8px;font-weight:600">⚠ Danger Zone</div>
+        <div style="font-size:13px;color:var(--text-2);margin-bottom:14px">Permanently deletes this instance and all associated files. This cannot be undone.</div>
+        <button class="btn btn-rose" onclick="deleteBot()">Destroy Instance</button>
       </div>
     </div>
+
+    <!-- Resources -->
     <div class="page" id="page-resources">
       <div class="panel">
-        <div class="panel-head"><div class="panel-title">SYSTEM HARDWARE</div><span class="panel-tag" style="color:var(--neon-cyan);border-color:var(--neon-cyan);background:rgba(0,240,255,.1)">LIVE TELEMETRY</span></div>
+        <div class="panel-head">
+          <div class="panel-title"><div class="panel-title-icon">▣</div> System Resources</div>
+          <span class="panel-badge" style="color:var(--mint);border-color:rgba(77,255,204,0.25);background:var(--mint-dim)">Live Telemetry</span>
+        </div>
         <div class="panel-body">
-          <div class="res-item"><div class="res-header"><span style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--text-muted)">CPU USAGE</span><span class="sv-cyan" style="font-family:var(--font-disp);font-size:24px" id="rCpu">—</span></div><div class="res-track"><div class="res-fill" id="pCpu" style="width:0%;background:var(--neon-cyan)"></div></div></div>
-          <div class="res-item"><div class="res-header"><span style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--text-muted)">MEMORY</span><span class="sv-purple" style="font-family:var(--font-disp);font-size:24px" id="rMem">—</span></div><div class="res-track"><div class="res-fill" id="pMem" style="width:0%;background:var(--neon-purple)"></div></div></div>
-          <div class="res-item"><div class="res-header"><span style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--text-muted)">DISK</span><span class="sv-cyan" style="font-family:var(--font-disp);font-size:24px" id="rDsk">—</span></div><div class="res-track"><div class="res-fill" id="pDsk" style="width:0%;background:var(--neon-cyan)"></div></div></div>
+          <div class="res-item">
+            <div class="res-header">
+              <span class="res-label">CPU Utilization</span>
+              <span class="res-value" id="rCpu" style="color:var(--blue)">—</span>
+            </div>
+            <div class="res-track"><div class="res-fill" id="pCpu" style="width:0%;background:var(--blue)"></div></div>
+          </div>
+          <div class="res-item">
+            <div class="res-header">
+              <span class="res-label">Memory Usage</span>
+              <span class="res-value" id="rMem" style="color:var(--amber)">—</span>
+            </div>
+            <div class="res-track"><div class="res-fill" id="pMem" style="width:0%;background:var(--amber)"></div></div>
+          </div>
+          <div class="res-item">
+            <div class="res-header">
+              <span class="res-label">Disk Usage</span>
+              <span class="res-value" id="rDsk" style="color:var(--mint)">—</span>
+            </div>
+            <div class="res-track"><div class="res-fill" id="pDsk" style="width:0%;background:var(--mint)"></div></div>
+          </div>
         </div>
       </div>
     </div>
   </main>
+
+  <!-- Mobile Bottom Nav -->
   <nav class="mobile-bottom-nav">
-    <div class="m-nav-item" onclick="toggleSidebar()"><span class="m-nav-glyph">▤</span><span class="m-nav-text">Bots</span></div>
-    <div class="m-nav-item active" data-page="dashboard" onclick="navTo('dashboard',this)"><span class="m-nav-glyph">◈</span><span class="m-nav-text">Dash</span></div>
-    <div class="m-nav-item" data-page="console" onclick="navTo('console',this)"><span class="m-nav-glyph">_</span><span class="m-nav-text">Term</span></div>
-    <div class="m-nav-item" data-page="files" onclick="navTo('files',this)"><span class="m-nav-glyph">≡</span><span class="m-nav-text">Files</span></div>
-    <div class="m-nav-item" data-page="settings" onclick="navTo('settings',this)"><span class="m-nav-glyph">⚙</span><span class="m-nav-text">Config</span></div>
+    <div class="m-nav-item" onclick="toggleSidebar()">
+      <span class="m-nav-icon">⊞</span>
+      <span class="m-nav-label">Instances</span>
+    </div>
+    <div class="m-nav-item active" data-page="dashboard" onclick="navTo('dashboard',this)">
+      <span class="m-nav-icon">⬡</span>
+      <span class="m-nav-label">Dash</span>
+    </div>
+    <div class="m-nav-item" data-page="console" onclick="navTo('console',this)">
+      <span class="m-nav-icon">▸</span>
+      <span class="m-nav-label">Console</span>
+    </div>
+    <div class="m-nav-item" data-page="files" onclick="navTo('files',this)">
+      <span class="m-nav-icon">◑</span>
+      <span class="m-nav-label">Files</span>
+    </div>
+    <div class="m-nav-item" data-page="settings" onclick="navTo('settings',this)">
+      <span class="m-nav-icon">◈</span>
+      <span class="m-nav-label">Config</span>
+    </div>
   </nav>
 </div>
-<div class="toast-tray" id="toastTray"></div>
+
+<div class="toast-stack" id="toastTray"></div>
+
+<!-- Create Modal -->
 <div class="modal-veil" id="mCreate">
-  <div class="modal-box">
-    <div class="modal-heading">DEPLOY <span class="modal-heading-accent">INSTANCE</span></div>
+  <div class="modal">
+    <div class="modal-title">Deploy <span class="modal-title-accent">Instance</span></div>
     <div class="form-group"><label class="form-label">Instance Name</label><input class="form-input" id="mName" placeholder="Project Alpha"></div>
     <div class="form-group"><label class="form-label">Startup File</label><input class="form-input" id="mFile" value="main.py" placeholder="main.py"></div>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('mCreate')">Cancel</button><button class="btn btn-cyan" onclick="createBot()">Initialize</button></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('mCreate')">Cancel</button>
+      <button class="btn btn-amber" onclick="createBot()">Initialize</button>
+    </div>
   </div>
 </div>
+
+<!-- Editor Modal -->
 <div class="modal-veil" id="mEditor">
-  <div class="modal-box wide">
-    <div class="modal-heading">EDIT <span class="modal-heading-accent" id="edName">FILE</span></div>
+  <div class="modal wide">
+    <div class="modal-title">Edit <span class="modal-title-accent" id="edName">File</span></div>
     <textarea class="code-editor" id="edContent"></textarea>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('mEditor')">Discard</button><button class="btn btn-cyan" onclick="saveFile()">Commit Changes</button></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('mEditor')">Discard</button>
+      <button class="btn btn-amber" onclick="saveFile()">Save Changes</button>
+    </div>
   </div>
 </div>
+
+<!-- New File Modal -->
 <div class="modal-veil" id="mNewFile">
-  <div class="modal-box">
-    <div class="modal-heading">CREATE <span class="modal-heading-accent">FILE</span></div>
-    <div class="form-group"><label class="form-label">Filename (e.g. src/app.py)</label><input class="form-input" id="nfName" placeholder="main.py"></div>
-    <div class="form-group"><label class="form-label">Initial Content</label><textarea class="form-textarea" id="nfContent" placeholder="# Code..." style="height:160px"></textarea></div>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('mNewFile')">Cancel</button><button class="btn btn-cyan" onclick="createNewFile()">Create</button></div>
+  <div class="modal">
+    <div class="modal-title">Create <span class="modal-title-accent">File</span></div>
+    <div class="form-group"><label class="form-label">Filename</label><input class="form-input" id="nfName" placeholder="src/app.py"></div>
+    <div class="form-group"><label class="form-label">Initial Content</label><textarea class="form-textarea" id="nfContent" placeholder="# Start writing..." style="height:140px"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('mNewFile')">Cancel</button>
+      <button class="btn btn-amber" onclick="createNewFile()">Create</button>
+    </div>
   </div>
 </div>
+
 <script>
 const sock=io({transports:['websocket','polling']});
 let curBot=null,botRegistry={},startTimes={},uptimeIv=null,resIv=null,currentUser="",authMode='login';
@@ -644,12 +1125,12 @@ sock.on('status_update',({bot_id,status,start_time})=>{
   if(status==='online'&&start_time){startTimes[bot_id]=start_time*1000;startUptime()}else delete startTimes[bot_id];
 });
 function toggleSidebar(){
-  document.querySelector('.sidebar').classList.toggle('open');
+  const sb=document.querySelector('.sidebar');sb.classList.toggle('open');
   const o=document.querySelector('.sidebar-overlay');
-  if(o.classList.contains('open')){o.classList.remove('open');setTimeout(()=>o.style.display='none',300)}
-  else{o.style.display='block';void o.offsetWidth;o.classList.add('open')}
+  if(sb.classList.contains('open')){o.style.display='block';void o.offsetWidth;o.classList.add('open')}
+  else{o.classList.remove('open');setTimeout(()=>o.style.display='none',300)}
 }
-const PAGE_NAMES={dashboard:'DASHBOARD',console:'CONSOLE',files:'FILE MANAGER',env:'ENVIRONMENT',settings:'SETTINGS',resources:'RESOURCES'};
+const PAGE_NAMES={dashboard:'Dashboard',console:'Console',files:'File Manager',env:'Environment',settings:'Settings',resources:'Resources'};
 function navTo(name,el){
   document.querySelectorAll('.sidebar .nav-item').forEach(n=>n.classList.remove('active'));
   const d=document.querySelector(`.sidebar .nav-item[data-page="${name}"]`);if(d)d.classList.add('active');
@@ -657,7 +1138,7 @@ function navTo(name,el){
   const m=document.querySelector(`.mobile-bottom-nav .m-nav-item[data-page="${name}"]`);if(m)m.classList.add('active');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const p=document.getElementById('page-'+name);if(p)p.classList.add('active');
-  document.getElementById('tbPage').textContent=PAGE_NAMES[name]||name.toUpperCase();
+  document.getElementById('tbPage').textContent=PAGE_NAMES[name]||name;
   if(name==='files')loadFiles();if(name==='env')loadEnv();if(name==='settings')loadSettings();
   if(name==='resources')startRes();else stopRes();
 }
@@ -673,14 +1154,14 @@ function switchAuthMode(mode){
   authMode=mode;
   document.getElementById('tabLogin').classList.toggle('active',mode==='login');
   document.getElementById('tabRegister').classList.toggle('active',mode==='register');
-  document.getElementById('authBtn').textContent=mode==='login'?'AUTHENTICATE':'CREATE ACCOUNT';
+  document.getElementById('authBtn').textContent=mode==='login'?'Sign In':'Create Account';
 }
 async function submitAuth(){
   const u=document.getElementById('authUsername').value.trim(),p=document.getElementById('authPassword').value;
   if(!u||!p){toast('Credentials required','error');return}
   const ep=authMode==='login'?'/api/login':'/api/register';
   const r=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-  const res=await r.json();if(r.ok)location.reload();else toast(res.error||'Authentication Failed','error');
+  const res=await r.json();if(r.ok)location.reload();else toast(res.error||'Authentication failed','error');
 }
 async function logout(){await fetch('/api/logout',{method:'POST'});location.reload()}
 async function loadBots(){
@@ -692,12 +1173,12 @@ async function loadBots(){
 function renderBotList(){
   const el=document.getElementById('botList');el.innerHTML='';
   const entries=Object.entries(botRegistry);
-  if(!entries.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-dark);font-family:var(--font-mono);font-size:11px">NO INSTANCES</div>';return}
+  if(!entries.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px;letter-spacing:1px">No instances</div>';return}
   entries.forEach(([id,b])=>{
     const d=document.createElement('div');d.className='bot-item'+(id===curBot?' active':'');
-    const s=b.status||'offline',sh=b.is_shared?`<span class="bot-shared-icon">SHARED</span>`:'';
-    d.innerHTML=`<div class="bot-indicator ${s}"></div><div style="flex:1"><div class="bot-name">${escH(b.name||id)}</div><div style="display:flex"><div class="bot-status-text">${s}</div>${sh}</div></div>`;
-    d.onclick=()=>{selectBot(id);if(window.innerWidth<=850&&document.querySelector('.sidebar').classList.contains('open'))toggleSidebar()};
+    const s=b.status||'offline',sh=b.is_shared?`<span class="bot-shared-badge">shared</span>`:'';
+    d.innerHTML=`<div class="bot-dot ${s}"></div><div class="bot-info"><div class="bot-name">${escH(b.name||id)}</div><div class="bot-state ${s}">${s}</div></div>${sh}`;
+    d.onclick=()=>{selectBot(id);if(window.innerWidth<=860&&document.querySelector('.sidebar').classList.contains('open'))toggleSidebar()};
     el.appendChild(d);
   });
 }
@@ -705,11 +1186,11 @@ function selectBot(id){
   curBot=id;const b=botRegistry[id];
   document.getElementById('tbBot').textContent=b?.name||id;
   document.getElementById('sfInput').value=b?.startup_file||'main.py';
-  document.getElementById('termTitle').textContent=(b?.name||id)+' STDOUT';
+  document.getElementById('termTitle').textContent=(b?.name||id)+' — stdout';
   ['mainTerm','miniTerm'].forEach(i=>document.getElementById(i).innerHTML='');
   applyStatus(b?.status||'offline');renderBotList();loadBotLogs();startUptime();
   if(b&&b.is_shared){document.getElementById('accessMgmtTitle').style.display='none';document.getElementById('accessMgmtSection').style.display='none';document.getElementById('dangerZoneSection').style.display='none'}
-  else{document.getElementById('accessMgmtTitle').style.display='block';document.getElementById('accessMgmtSection').style.display='block';document.getElementById('dangerZoneSection').style.display='block';if(document.getElementById('page-settings').classList.contains('active'))loadSettings()}
+  else{document.getElementById('accessMgmtTitle').style.display='';document.getElementById('accessMgmtSection').style.display='';document.getElementById('dangerZoneSection').style.display='';if(document.getElementById('page-settings').classList.contains('active'))loadSettings()}
 }
 async function loadBotLogs(){
   if(!curBot)return;const r=await apiFetch(`/api/bot/${curBot}/logs`);if(!r)return;
@@ -718,11 +1199,11 @@ async function loadBotLogs(){
 }
 function applyStatus(s){
   const on=s==='online';
-  document.getElementById('statusTag').className='status-tag '+(on?'online':'offline');
-  document.getElementById('statusText').textContent=on?'ONLINE':'OFFLINE';
-  document.getElementById('sStat').textContent=on?'ONLINE':'OFFLINE';
-  document.getElementById('sStat').className='stat-value '+(on?'sv-green':'sv-red');
-  document.getElementById('sStatSub').textContent=on?'Process Active':'Process Halted';
+  document.getElementById('statusTag').className='status-pill '+(on?'online':'offline');
+  document.getElementById('statusText').textContent=on?'Online':'Offline';
+  document.getElementById('sStat').textContent=on?'Online':'Offline';
+  document.getElementById('sStat').className='stat-number '+(on?'online':'offline');
+  document.getElementById('sStatSub').textContent=on?'Process running':'Process halted';
   if(!on)document.getElementById('sUptime').textContent='—';
 }
 function openCreateModal(){document.getElementById('mCreate').classList.add('open');setTimeout(()=>document.getElementById('mName').focus(),80)}
@@ -735,43 +1216,53 @@ async function createBot(){
   const b=await r.json();botRegistry[b.id]=b;closeModal('mCreate');document.getElementById('mName').value='';
   renderBotList();document.getElementById('botCount').textContent=Object.keys(botRegistry).length;selectBot(b.id);toast('Instance deployed','success');
 }
-async function startBot(){if(!curBot)return;const sf=document.getElementById('sfInput').value.trim()||'main.py';await apiFetch(`/api/bot/${curBot}/start`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({startup_file:sf})});toast('Booting...','info')}
-async function stopBot(){if(!curBot)return;await apiFetch(`/api/bot/${curBot}/stop`,{method:'POST'});toast('Stopped','success')}
-async function restartBot(){if(!curBot)return;await apiFetch(`/api/bot/${curBot}/stop`,{method:'POST'});toast('Rebooting...','info');setTimeout(startBot,800)}
-async function killBot(){if(!curBot)return;await apiFetch(`/api/bot/${curBot}/kill`,{method:'POST'});toast('Force-killed','error')}
+async function startBot(){if(!curBot)return;const sf=document.getElementById('sfInput').value.trim()||'main.py';await apiFetch(`/api/bot/${curBot}/start`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({startup_file:sf})});toast('Starting process…','info')}
+async function stopBot(){if(!curBot)return;await apiFetch(`/api/bot/${curBot}/stop`,{method:'POST'});toast('Process stopped','success')}
+async function restartBot(){if(!curBot)return;await apiFetch(`/api/bot/${curBot}/stop`,{method:'POST'});toast('Restarting…','info');setTimeout(startBot,800)}
+async function killBot(){if(!curBot)return;await apiFetch(`/api/bot/${curBot}/kill`,{method:'POST'});toast('Force killed','error')}
 async function deleteBot(){
-  if(!curBot||!confirm('Permanently wipe this instance?'))return;
+  if(!curBot||!confirm('Permanently destroy this instance?'))return;
   await apiFetch(`/api/bot/${curBot}`,{method:'DELETE'});delete botRegistry[curBot];curBot=null;
-  document.getElementById('tbBot').textContent='— SELECT INSTANCE —';
+  document.getElementById('tbBot').textContent='Select Instance';
   ['mainTerm','miniTerm'].forEach(i=>document.getElementById(i).innerHTML='');
-  applyStatus('offline');renderBotList();document.getElementById('botCount').textContent=Object.keys(botRegistry).length;toast('Instance wiped','error');
+  applyStatus('offline');renderBotList();document.getElementById('botCount').textContent=Object.keys(botRegistry).length;toast('Instance destroyed','error');
 }
 function appendLog(msg,level,ts){
   const tagMap={system:'sys',error:'err',success:'ok',warn:'warn',default:'out'};
   const tag=tagMap[level]||'out',t=ts||new Date().toTimeString().slice(0,8);
-  const row=`<div class="log-row"><span class="log-ts">${escH(t)}</span><span class="log-tag ${tag}">${tag.toUpperCase()}</span><span class="log-msg ${tag}">${escH(msg)}</span></div>`;
+  const row=`<div class="log-row"><span class="log-ts">${escH(t)}</span><span class="log-badge ${tag}">${tag}</span><span class="log-msg ${tag}">${escH(msg)}</span></div>`;
   ['mainTerm','miniTerm'].forEach(id=>{const el=document.getElementById(id);if(el){el.innerHTML+=row;el.scrollTop=el.scrollHeight}});
 }
-function clearConsole(){['mainTerm','miniTerm'].forEach(id=>document.getElementById(id).innerHTML='');toast('Buffer cleared','info')}
+function clearConsole(){['mainTerm','miniTerm'].forEach(id=>document.getElementById(id).innerHTML='');toast('Console cleared','info')}
 function exportLogs(){
   const lines=Array.from(document.getElementById('mainTerm').querySelectorAll('.log-row')).map(r=>r.textContent.trim()).join('\n');
-  const a=document.createElement('a');a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(lines);a.download=`${curBot||'vortex'}-${Date.now()}.log`;a.click();toast('Logs downloaded','success');
+  const a=document.createElement('a');a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(lines);a.download=`${curBot||'vortex'}-${Date.now()}.log`;a.click();toast('Logs exported','success');
 }
 async function sendInput(){
   if(!curBot)return;let v=document.getElementById('termIn').value;document.getElementById('termIn').value='';
   v=v.replace(/\x1b\[[0-9;]*[a-zA-Z]/g,'').replace(/[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]/g,'');
   await apiFetch(`/api/bot/${curBot}/input`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input:v+'\n'})});
 }
-const EXT_COLORS={py:'#00FF66',js:'#FFB800',json:'#00F0FF',md:'#B000FF',txt:'#6A85B6',sh:'#00F0FF',zip:'#FF0055',env:'#FFB800',ts:'#00F0FF'};
-function fileGlyph(ext){const g={py:'🐍',js:'⚡',json:'{}',txt:'≡',md:'#',zip:'⊞',env:'⊛',sh:'$',ts:'⟨⟩'};return `<span style="font-size:14px">${g[ext]||'□'}</span>`}
+const EXT_ICONS={py:'🐍',js:'⚡',json:'{}',txt:'≡',md:'#',zip:'⊞',env:'◎',sh:'$',ts:'⟨⟩',html:'<>',css:'◐',yml:'⚙',yaml:'⚙'};
+const EXT_COLORS={py:'#4EC9B0',js:'#E8A855',json:'#5B8DEF',txt:'#9E9EA8',md:'#C792EA',zip:'#FF4D6D',env:'#E8A855',sh:'#4DFFCC',ts:'#5B8DEF',html:'#E06C75',css:'#56B6C2'};
 async function loadFiles(){
   const tb=document.getElementById('fileList');
-  if(!curBot){tb.innerHTML=`<tr><td colspan="5"><div style="padding:40px;text-align:center;color:var(--text-dark);font-family:var(--font-mono)">NO INSTANCE TARGETED</div></td></tr>`;return}
+  if(!curBot){tb.innerHTML=`<tr><td colspan="5"><div style="padding:40px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px">Select an instance first</div></td></tr>`;return}
   const r=await apiFetch(`/api/bot/${curBot}/files`);if(!r)return;const files=await r.json();
-  if(!files.length){tb.innerHTML=`<tr><td colspan="5"><div style="padding:40px;text-align:center;color:var(--text-dark);font-family:var(--font-mono)">DIRECTORY EMPTY</div></td></tr>`;return}
+  if(!files.length){tb.innerHTML=`<tr><td colspan="5"><div style="padding:40px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px">Directory is empty</div></td></tr>`;return}
   tb.innerHTML=files.map(f=>{
-    const ext=f.name.split('.').pop().toLowerCase(),c=EXT_COLORS[ext]||'#6A85B6',jn=JSON.stringify(f.name);
-    return `<tr><td><div class="file-name-cell" onclick='editFile(${jn})'>${fileGlyph(ext)} <span style='overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:180px'>${escH(f.name)}</span></div></td><td><span class="file-ext-badge" style="color:${c};border-color:${c}40">${ext}</span></td><td style='white-space:nowrap'>${escH(f.size)}</td><td>${escH(f.modified)}</td><td><div class="btn-row" style='flex-wrap:nowrap'><button class="btn btn-ghost btn-sm" onclick='editFile(${jn})' title='Edit'>✏</button><button class="btn btn-ghost btn-sm" onclick='dlFile(${jn})' title='Download'>↓</button><button class="btn btn-red btn-sm" onclick='delFile(${jn})' title='Delete'>⊘</button></div></td></tr>`;
+    const ext=f.name.split('.').pop().toLowerCase(),c=EXT_COLORS[ext]||'#6B6B7A',ic=EXT_ICONS[ext]||'□',jn=JSON.stringify(f.name);
+    return `<tr>
+      <td><div class="file-name-link" onclick='editFile(${jn})'><span class="file-icon">${ic}</span><span class="file-name-text" title="${escH(f.name)}">${escH(f.name)}</span></div></td>
+      <td><span class="file-type-chip" style="color:${c};border-color:${c}30">.${ext}</span></td>
+      <td style="color:var(--text-3)">${escH(f.size)}</td>
+      <td style="color:var(--text-3);font-size:11px">${escH(f.modified)}</td>
+      <td><div class="btn-row" style="flex-wrap:nowrap;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick='editFile(${jn})' title="Edit" style="padding:5px 8px">✏</button>
+        <button class="btn btn-ghost btn-sm" onclick='dlFile(${jn})' title="Download" style="padding:5px 8px">↓</button>
+        <button class="btn btn-rose btn-sm" onclick='delFile(${jn})' title="Delete" style="padding:5px 8px">✕</button>
+      </div></td>
+    </tr>`;
   }).join('');
 }
 async function editFile(name){
@@ -782,104 +1273,61 @@ async function editFile(name){
 async function saveFile(){
   const name=document.getElementById('edContent').dataset.fn;if(!name)return;
   await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:document.getElementById('edContent').value})});
-  closeModal('mEditor');loadFiles();toast(`${name} updated`,'success');
+  closeModal('mEditor');loadFiles();toast(`${name} saved`,'success');
 }
 function openNewFileModal(){if(!curBot)return;document.getElementById('mNewFile').classList.add('open')}
 async function createNewFile(){
   const name=document.getElementById('nfName').value.trim();if(!name){toast('Filename required','error');return}
   await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:document.getElementById('nfContent').value})});
-  closeModal('mNewFile');document.getElementById('nfName').value='';document.getElementById('nfContent').value='';loadFiles();toast('File injected','success');
+  closeModal('mNewFile');document.getElementById('nfName').value='';document.getElementById('nfContent').value='';loadFiles();toast('File created','success');
 }
-async function delFile(name){if(!confirm(`Delete ${name}?`))return;await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`,{method:'DELETE'});loadFiles();toast('File erased','success')}
+async function delFile(name){if(!confirm(`Delete ${name}?`))return;await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`,{method:'DELETE'});loadFiles();toast('File deleted','success')}
 function dlFile(name){window.location.href=`/api/bot/${curBot}/file/${encodeURIComponent(name)}/download`}
 
-// ── UPLOAD: preserves folder structure via webkitRelativePath ──
-async function handleUpload(files, isFolder){
-  // Snapshot files immediately before resetting inputs
-  const fileArr = files ? Array.from(files) : [];
-  // Reset inputs so the same file can be re-selected next time
-  try{ document.getElementById('fileUploadInput').value=''; }catch(e){}
-  try{ document.getElementById('folderUploadInput').value=''; }catch(e){}
-
-  if(!curBot){ toast('Select an instance first','error'); return; }
-  if(!fileArr.length){ toast('No files selected','error'); return; }
-
-  const prog = document.getElementById('uploadProgress');
-  if(!prog){ console.error('uploadProgress element not found'); return; }
-  let ok=0, fail=0;
-
+async function handleUpload(files,isFolder){
+  const fileArr=files?Array.from(files):[];
+  try{document.getElementById('fileUploadInput').value=''}catch(e){}
+  try{document.getElementById('folderUploadInput').value=''}catch(e){}
+  if(!curBot){toast('Select an instance first','error');return}
+  if(!fileArr.length){toast('No files selected','error');return}
+  const prog=document.getElementById('uploadProgress');if(!prog)return;
+  let ok=0,fail=0;
   for(const file of fileArr){
-    const relPath = (isFolder && file.webkitRelativePath) ? file.webkitRelativePath : file.name;
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('relative_path', relPath);
-
-    const sid = 'up_' + Math.random().toString(36).slice(2);
-    const wrap = document.createElement('div');
-    wrap.className = 'upload-item';
-    wrap.innerHTML = `
-      <span style="flex-shrink:0;color:var(--neon-cyan)">⇪</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px" title="${escH(relPath)}">${escH(relPath)}</span>
-      <div class="upload-bar-wrap"><div class="upload-bar-fill" id="${sid}" style="width:0%"></div></div>
-      <span id="${sid}st" style="font-size:11px;color:var(--text-dark);flex-shrink:0;min-width:30px;text-align:right">0%</span>`;
+    const relPath=(isFolder&&file.webkitRelativePath)?file.webkitRelativePath:file.name;
+    const fd=new FormData();fd.append('file',file);fd.append('relative_path',relPath);
+    const sid='up_'+Math.random().toString(36).slice(2);
+    const wrap=document.createElement('div');wrap.className='upload-row';
+    wrap.innerHTML=`<span style="color:var(--amber);flex-shrink:0">⬆</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px" title="${escH(relPath)}">${escH(relPath)}</span><div class="upload-bar-wrap"><div class="upload-bar-fill" id="${sid}" style="width:0%"></div></div><span id="${sid}st" style="font-size:10.5px;color:var(--text-3);flex-shrink:0;min-width:28px;text-align:right">0%</span>`;
     prog.appendChild(wrap);
-
     try{
-      await new Promise((resolve, reject)=>{
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `/api/bot/${curBot}/upload`);
-        xhr.upload.addEventListener('progress', e=>{
-          if(e.lengthComputable){
-            const pct = Math.round(e.loaded/e.total*95);
-            const b=document.getElementById(sid), s=document.getElementById(sid+'st');
-            if(b) b.style.width=pct+'%';
-            if(s) s.textContent=pct+'%';
-          }
-        });
-        xhr.addEventListener('load', ()=>{
-          if(xhr.status===401){ document.getElementById('loginOverlay').style.display='flex'; reject(new Error('Unauthorized')); return; }
-          let resp={};
-          try{ resp=JSON.parse(xhr.responseText); }catch(e){}
-          if(resp.error){ reject(new Error(resp.error)); return; }
-          if(xhr.status>=200 && xhr.status<300) resolve();
-          else reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
-        });
-        xhr.addEventListener('error', ()=>reject(new Error('Network error')));
-        xhr.addEventListener('abort', ()=>reject(new Error('Aborted')));
+      await new Promise((resolve,reject)=>{
+        const xhr=new XMLHttpRequest();xhr.open('POST',`/api/bot/${curBot}/upload`);
+        xhr.upload.addEventListener('progress',e=>{if(e.lengthComputable){const pct=Math.round(e.loaded/e.total*95);const b=document.getElementById(sid),s=document.getElementById(sid+'st');if(b)b.style.width=pct+'%';if(s)s.textContent=pct+'%'}});
+        xhr.addEventListener('load',()=>{if(xhr.status===401){document.getElementById('loginOverlay').style.display='flex';reject(new Error('Unauthorized'));return}let resp={};try{resp=JSON.parse(xhr.responseText)}catch(e){}if(resp.error){reject(new Error(resp.error));return}if(xhr.status>=200&&xhr.status<300)resolve();else reject(new Error(`HTTP ${xhr.status}`))});
+        xhr.addEventListener('error',()=>reject(new Error('Network error')));
+        xhr.addEventListener('abort',()=>reject(new Error('Aborted')));
         xhr.send(fd);
       });
-      const b=document.getElementById(sid), s=document.getElementById(sid+'st');
-      if(b){ b.style.width='100%'; b.style.background='var(--green)'; }
-      if(s){ s.textContent='✓'; s.style.color='var(--green)'; }
-      ok++;
-      setTimeout(()=>wrap.remove(), 2500);
+      const b=document.getElementById(sid),s=document.getElementById(sid+'st');
+      if(b){b.style.width='100%';b.style.background='var(--mint)'}if(s){s.textContent='✓';s.style.color='var(--mint)'}
+      ok++;setTimeout(()=>wrap.remove(),2500);
     }catch(err){
-      const b=document.getElementById(sid), s=document.getElementById(sid+'st');
-      if(b){ b.style.width='100%'; b.style.background='var(--red)'; }
-      if(s){ s.textContent='✕'; s.style.color='var(--red)'; }
-      wrap.style.borderColor='rgba(255,0,85,.4)';
-      fail++;
-      console.error('Upload failed:', relPath, err.message);
-      toast(`Upload failed: ${err.message}`, 'error');
-      setTimeout(()=>wrap.remove(), 5000);
+      const b=document.getElementById(sid),s=document.getElementById(sid+'st');
+      if(b){b.style.width='100%';b.style.background='var(--rose)'}if(s){s.textContent='✕';s.style.color='var(--rose)'}
+      wrap.style.borderColor='rgba(255,77,109,0.3)';fail++;
+      toast(`Upload failed: ${err.message}`,'error');setTimeout(()=>wrap.remove(),5000);
     }
   }
   loadFiles();
-  if(ok>0 && fail===0)      toast(`${ok} file${ok>1?'s':''} uploaded`, 'success');
-  else if(ok>0 && fail>0)   toast(`${ok} uploaded, ${fail} failed`, 'info');
+  if(ok>0&&fail===0)toast(`${ok} file${ok>1?'s':''} uploaded`,'success');
+  else if(ok>0&&fail>0)toast(`${ok} uploaded, ${fail} failed`,'info');
 }
 
-// Drag-and-drop — attach to document so it works even when page is hidden,
-// but only trigger upload when the files panel is visible.
 let _dzDepth=0;
-document.addEventListener('dragenter', e=>{ e.preventDefault(); _dzDepth++; const dz=document.getElementById('dropZone'); if(dz) dz.classList.add('dragging'); });
-document.addEventListener('dragleave', e=>{ if(--_dzDepth<=0){ _dzDepth=0; const dz=document.getElementById('dropZone'); if(dz) dz.classList.remove('dragging'); } });
-document.addEventListener('dragover', e=>e.preventDefault());
-document.addEventListener('drop', e=>{
-  e.preventDefault(); _dzDepth=0;
-  const dz=document.getElementById('dropZone'); if(dz) dz.classList.remove('dragging');
-  if(e.dataTransfer.files.length) handleUpload(e.dataTransfer.files, false);
-});
+document.addEventListener('dragenter',e=>{e.preventDefault();_dzDepth++;const dz=document.getElementById('dropZone');if(dz)dz.classList.add('dragging')});
+document.addEventListener('dragleave',e=>{if(--_dzDepth<=0){_dzDepth=0;const dz=document.getElementById('dropZone');if(dz)dz.classList.remove('dragging')}});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{e.preventDefault();_dzDepth=0;const dz=document.getElementById('dropZone');if(dz)dz.classList.remove('dragging');if(e.dataTransfer.files.length)handleUpload(e.dataTransfer.files,false)});
 
 async function loadEnv(){
   if(!curBot)return;const r=await apiFetch(`/api/bot/${curBot}/env`);if(!r)return;
@@ -888,23 +1336,23 @@ async function loadEnv(){
 }
 function addEnvRow(k='',v=''){
   const d=document.createElement('div');d.className='env-row';
-  d.innerHTML=`<input class="env-field key-field" placeholder="KEY" value="${escH(k)}"><input class="env-field" placeholder="value" value="${escH(v)}"><button class="btn btn-red btn-sm" onclick="this.parentElement.remove()">✕</button>`;
+  d.innerHTML=`<input class="env-field env-key" placeholder="KEY" value="${escH(k)}"><input class="env-field" placeholder="value" value="${escH(v)}"><button class="btn btn-rose btn-sm" onclick="this.parentElement.remove()" style="padding:6px 10px">✕</button>`;
   document.getElementById('envRows').appendChild(d);
 }
 async function saveEnv(){
   if(!curBot)return;const env={};
-  document.querySelectorAll('.env-row').forEach(r=>{const k=r.querySelector('.key-field')?.value.trim(),v=r.querySelectorAll('.env-field')[1]?.value;if(k)env[k]=v||''});
-  await apiFetch(`/api/bot/${curBot}/env`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(env)});toast('Environment synced','success');
+  document.querySelectorAll('.env-row').forEach(r=>{const k=r.querySelector('.env-key')?.value.trim(),v=r.querySelectorAll('.env-field')[1]?.value;if(k)env[k]=v||''});
+  await apiFetch(`/api/bot/${curBot}/env`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(env)});toast('Environment saved','success');
 }
 async function loadSettings(){
   if(!curBot)return;const b=botRegistry[curBot]||{};
   document.getElementById('stName').value=b.name||'';document.getElementById('stStartup').value=b.startup_file||'main.py';document.getElementById('stAR').value=b.auto_restart?'true':'false';
-  if(!b.is_shared){const r=await apiFetch(`/api/bot/${curBot}/subusers`);if(r){const users=await r.json();const c=document.getElementById('subuserList');c.innerHTML='';users.forEach(u=>{const div=document.createElement('div');div.className='subuser-item';div.innerHTML=`<span>${escH(u)}</span><button class="btn btn-red btn-sm" onclick="removeSubuser('${escH(u)}')">REVOKE</button>`;c.appendChild(div)})}}
+  if(!b.is_shared){const r=await apiFetch(`/api/bot/${curBot}/subusers`);if(r){const users=await r.json();const c=document.getElementById('subuserList');c.innerHTML='';users.forEach(u=>{const div=document.createElement('div');div.className='subuser-row';div.innerHTML=`<span style="color:var(--text-2)">${escH(u)}</span><button class="btn btn-rose btn-sm" onclick="removeSubuser('${escH(u)}')">Revoke</button>`;c.appendChild(div)})}}
 }
 async function saveSettings(){
   if(!curBot)return;const data={name:document.getElementById('stName').value.trim(),startup_file:document.getElementById('stStartup').value.trim()||'main.py',auto_restart:document.getElementById('stAR').value==='true'};
   const r=await apiFetch(`/api/bot/${curBot}/settings`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(!r)return;
-  const upd=await r.json();botRegistry[curBot]={...botRegistry[curBot],...upd};document.getElementById('tbBot').textContent=data.name||curBot;renderBotList();toast('Config saved','success');
+  const upd=await r.json();botRegistry[curBot]={...botRegistry[curBot],...upd};document.getElementById('tbBot').textContent=data.name||curBot;renderBotList();toast('Settings saved','success');
 }
 async function addSubuser(){
   if(!curBot)return;const u=document.getElementById('newSubuser').value.trim();if(!u)return;
@@ -931,15 +1379,17 @@ async function fetchRes(){
 }
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function toast(msg,type='success'){
-  const tray=document.getElementById('toastTray'),icons={success:'✓',error:'✕',info:'ℹ'};
-  const t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`<span>${icons[type]||'·'}</span> ${escH(msg)}`;tray.appendChild(t);
-  setTimeout(()=>{t.style.transition='all .5s';t.style.opacity='0';t.style.transform='translateX(40px)';setTimeout(()=>t.remove(),500)},3000);
+  const tray=document.getElementById('toastTray');
+  const icons={success:'✓',error:'✕',info:'i'};
+  const t=document.createElement('div');t.className=`toast ${type}`;
+  t.innerHTML=`<div class="toast-icon">${icons[type]||'·'}</div><span>${escH(msg)}</span><span class="toast-close" onclick="this.parentElement.remove()">✕</span>`;
+  tray.appendChild(t);
+  setTimeout(()=>{t.style.transition='all .4s';t.style.opacity='0';t.style.transform='translateX(20px)';setTimeout(()=>t.remove(),400)},3200);
 }
 checkAuth().then(ok=>{if(ok){loadBots();fetchRes();setInterval(fetchRes,5000)}});
 </script>
 </body>
 </html>"""
-
 
 
 @socketio.on('connect')
@@ -1147,13 +1597,10 @@ def upload_route(bid):
     bd = get_bot_dir(bid)
     abs_bd = os.path.abspath(bd)
 
-    # Use relative_path sent by JS (preserves folder structure).
-    # Fall back to raw filename if not provided.
     raw_relative = (request.form.get('relative_path') or file.filename or '').strip()
     if not raw_relative:
         return jsonify({'error': 'could not determine filename'}), 400
 
-    # Sanitise every path segment to block traversal.
     parts = [p for p in raw_relative.replace('\\', '/').split('/') if p and p != '.']
     safe_parts = []
     for p in parts:
@@ -1161,7 +1608,6 @@ def upload_route(bid):
         if s:
             safe_parts.append(s)
         else:
-            # secure_filename returned '' (e.g. unicode-only name) — clean manually
             cleaned = p.replace('..', '').replace('/', '').replace('\\', '').strip()
             if cleaned:
                 safe_parts.append(cleaned)
@@ -1169,15 +1615,12 @@ def upload_route(bid):
     if not safe_parts:
         return jsonify({'error': 'invalid filename after sanitisation'}), 400
 
-    # For folder uploads, webkitRelativePath includes root folder as first segment.
-    # Drop it so files land in bot_dir root, not a subfolder.
     if len(safe_parts) > 1:
         safe_parts = safe_parts[1:]
 
     rel_path = os.path.join(*safe_parts)
     dest = os.path.abspath(os.path.join(abs_bd, rel_path))
 
-    # Final path traversal guard
     if dest != abs_bd and not dest.startswith(abs_bd + os.sep):
         return jsonify({'error': 'path traversal blocked'}), 403
 
