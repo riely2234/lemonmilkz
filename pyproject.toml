@@ -1,37 +1,23 @@
 [tool.poetry]
 name = "test-1"
 version = "0.1.0"
-description = ""
+description = "Lemon Milk Web Service"
 authors = ["Your Name <you@example.com>"]
+package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.15"
-
-# these were available in legacy repls. might be helpful to add
-# glfw = "2.2.0"
-# toml = "0.10.2"
-# importlib-metadata = "3.10.1"
-# parso = "0.5.2"
-# pluggy = "0.13.1"
-# typing-extensions = "3.7.4.3"
-# ujson = "1.35"
-# zipp = "3.4.1"
-# jedi = "0.15.2"
-# pyflakes = "2.1.1"
-# rope = "0.18.0"
-# yapf = "0.31.0"
-# matplotlib = "3.4.3"
-# nltk = "3.6.2"
-# numpy = "^1.21.5"
-# scipy = "1.7.3"
+python = ">=3.9,<3.15"
 psutil = "^7.2.2"
+flask = "^3.1.3"
+flask-socketio = "^5.6.1"
+werkzeug = "^3.1.6"
+gunicorn = "^23.0.0"
+eventlet = "^0.39.0"
 
 [tool.pyright]
-# https://github.com/microsoft/pyright/blob/main/docs/configuration.md
 useLibraryCodeForTypes = true
 
 [tool.ruff]
-# https://beta.ruff.rs/docs/configuration/
 select = ['E', 'W', 'F', 'I', 'B', 'C4', 'ARG', 'SIM']
 ignore = ['W291', 'W292', 'W293']
 
