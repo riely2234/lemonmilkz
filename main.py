@@ -2132,10 +2132,20 @@ def upload_route(bid):
                         os.remove(tmp_zip)
                         return jsonify({'error': 'password-protected zip'}), 400
 
-                # Determine extraction base: same directory as the zip
-                zip_dest_dir = os.path.dirname(tmp_zip)
-                if not zip_dest_dir:
-                    zip_dest_dir = abs_bd
+                # Detect if ALL entries share a single top-level folder (e.g. "repo-main/")
+                # GitHub/common ZIPs always do this. Strip it so files land in bot root.
+                all_file_parts = []
+                for m in zf.infolist():
+                    mp = m.filename.replace('\\', '/')
+                    pc = [p for p in mp.split('/') if p and p not in ('.', '..')]
+                    if pc:
+                        all_file_parts.append(pc)
+
+                strip_prefix = None
+                if all_file_parts:
+                    candidate = all_file_parts[0][0]
+                    if all(p[0] == candidate for p in all_file_parts if p):
+                        strip_prefix = candidate
 
                 for member in zf.infolist():
                     # Normalize the member name
@@ -2145,8 +2155,14 @@ def upload_route(bid):
                     if member_path.endswith('/'):
                         continue
 
-                    # Sanitize each component of the member path
+                    # Split into path components
                     m_parts = [p for p in member_path.split('/') if p and p not in ('.', '..')]
+                    if not m_parts:
+                        continue
+
+                    # Strip shared top-level folder so files go straight into bot dir
+                    if strip_prefix and m_parts[0] == strip_prefix:
+                        m_parts = m_parts[1:]
                     if not m_parts:
                         continue
 
@@ -2163,8 +2179,8 @@ def upload_route(bid):
                     if not safe_m_parts:
                         continue
 
-                    # Extract relative to the zip's own directory (preserving structure)
-                    dest_file = os.path.abspath(os.path.join(zip_dest_dir, *safe_m_parts))
+                    # Extract directly into bot directory (sub-folders preserved)
+                    dest_file = os.path.abspath(os.path.join(abs_bd, *safe_m_parts))
 
                     # Zip-slip check: must remain inside bot directory
                     if not dest_file.startswith(abs_bd + os.sep) and dest_file != abs_bd:
