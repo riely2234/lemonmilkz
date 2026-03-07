@@ -469,6 +469,11 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .bc-page{font-family:var(--font-disp);font-size:17px;font-weight:700;letter-spacing:3px;color:var(--text);text-transform:uppercase}
 .bc-bot{font-family:var(--font-mono);font-size:11px;color:var(--purple);background:var(--purple-dim);padding:4px 10px;border-radius:4px;border:1px solid rgba(160,32,240,0.25);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
 .topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.host-switcher{display:flex;align-items:center;background:rgba(0,0,0,0.5);border:1px solid var(--border-mid);border-radius:6px;padding:3px;gap:2px}
+.host-btn{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:5px 11px;border-radius:4px;border:none;background:transparent;color:var(--text-3);cursor:pointer;transition:all .2s;white-space:nowrap}
+.host-btn:hover{color:var(--text);background:rgba(255,255,255,0.07)}
+.host-btn.active{background:linear-gradient(135deg,rgba(0,229,255,0.18) 0%,rgba(0,150,200,0.12) 100%);color:var(--cyan);border:1px solid rgba(0,229,255,0.3);box-shadow:0 0 10px rgba(0,229,255,0.1)}
+.host-sep{width:1px;height:14px;background:var(--border-mid);flex-shrink:0}
 .status-badge{display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:20px;font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:1px;transition:all .3s;border:1px solid var(--border);background:rgba(0,0,0,0.4);text-transform:uppercase}
 .status-badge.online{color:var(--green);border-color:rgba(0,255,127,0.3);background:var(--green-dim);box-shadow:0 0 14px rgba(0,255,127,0.1)}
 .status-badge.offline{color:var(--text-3);border-color:var(--border)}
@@ -693,6 +698,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   .bc-bot{max-width:110px;font-size:10px}
   .topbar-right{display:flex;flex-wrap:nowrap;overflow-x:auto;width:100%;gap:6px;border-top:1px solid var(--border);padding-top:9px;-webkit-overflow-scrolling:touch}
   .topbar-right::-webkit-scrollbar{display:none}
+  .host-btn{padding:5px 8px;font-size:9px}
   .topbar-right .btn{white-space:nowrap;flex-shrink:0;padding:7px 11px;font-size:10px}
   .page{padding:10px}
   .stats-grid{grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
@@ -789,6 +795,8 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
         </div>
       </div>
       <div class="topbar-right">
+        <div class="host-switcher" id="hostSwitcher"></div>
+        <div class="host-sep" style="height:20px;margin:0 2px"></div>
         <div class="status-badge offline" id="statusTag">
           <div class="status-led"></div>
           <span id="statusText">OFFLINE</span>
@@ -1057,8 +1065,113 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   </div>
 </div>
 
+<!-- ADD HOST MODAL -->
+<div class="modal-veil" id="mAddHost">
+  <div class="modal-box">
+    <div class="modal-title">ADD <span class="modal-title-accent">HOST</span></div>
+    <div class="form-group">
+      <label class="form-label">Host URL</label>
+      <input class="form-input" id="ahUrl" placeholder="https://my-vortex-server.com" onkeydown="if(event.key==='Enter')submitAddHost()">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Display Label</label>
+      <input class="form-input" id="ahLabel" placeholder="Production" onkeydown="if(event.key==='Enter')submitAddHost()">
+    </div>
+    <p style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);margin-bottom:4px">Right-click a host button to remove it. The remote server must be reachable from your browser.</p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('mAddHost')">Cancel</button>
+      <button class="btn btn-cyan" onclick="submitAddHost()">Add Host</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ── globals ── */
+/* ── host switcher ── */
+const HOSTS = [];  // populated from /api/hosts
+let currentHostUrl = '';  // empty = this server
+
+function addHost(url, label) {
+  // Normalise: strip trailing slash
+  url = url.replace(/\/+$/, '');
+  if (HOSTS.find(h => h.url === url)) { toast('Host already added', 'info'); return; }
+  HOSTS.push({ url, label: label || url });
+  saveHosts();
+  renderHostSwitcher();
+}
+function removeHost(url) {
+  const idx = HOSTS.findIndex(h => h.url === url);
+  if (idx !== -1) HOSTS.splice(idx, 1);
+  if (currentHostUrl === url) switchHost('');
+  saveHosts();
+  renderHostSwitcher();
+}
+function saveHosts() {
+  try { localStorage.setItem('vortex_hosts', JSON.stringify(HOSTS)); } catch(e) {}
+}
+function loadHostsFromStorage() {
+  try {
+    const raw = localStorage.getItem('vortex_hosts');
+    if (raw) { const arr = JSON.parse(raw); arr.forEach(h => { if (!HOSTS.find(x => x.url === h.url)) HOSTS.push(h); }); }
+  } catch(e) {}
+}
+function renderHostSwitcher() {
+  const sw = document.getElementById('hostSwitcher');
+  if (!sw) return;
+  sw.innerHTML = '';
+  // "This server" button always first
+  const local = document.createElement('button');
+  local.className = 'host-btn' + (currentHostUrl === '' ? ' active' : '');
+  local.textContent = 'LOCAL';
+  local.title = 'This server';
+  local.onclick = () => switchHost('');
+  sw.appendChild(local);
+  HOSTS.forEach(h => {
+    if (sw.children.length > 1) {
+      const sep = document.createElement('div'); sep.className = 'host-sep'; sw.appendChild(sep);
+    }
+    const btn = document.createElement('button');
+    btn.className = 'host-btn' + (currentHostUrl === h.url ? ' active' : '');
+    btn.textContent = h.label;
+    btn.title = h.url;
+    btn.onclick = () => switchHost(h.url);
+    // Long-press / right-click to remove
+    btn.oncontextmenu = e => { e.preventDefault(); if (confirm('Remove host "' + h.label + '"?')) removeHost(h.url); };
+    sw.appendChild(btn);
+  });
+  // Add-host "+" button
+  const sep2 = document.createElement('div'); sep2.className = 'host-sep'; sw.appendChild(sep2);
+  const addBtn = document.createElement('button');
+  addBtn.className = 'host-btn'; addBtn.textContent = '+'; addBtn.title = 'Add remote host';
+  addBtn.onclick = () => openAddHostModal();
+  sw.appendChild(addBtn);
+}
+function switchHost(url) {
+  currentHostUrl = url;
+  renderHostSwitcher();
+  // Reload bots from the new host
+  curBot = null;
+  botRegistry = {};
+  startTimes = {};
+  document.getElementById('tbBot').textContent = '— SELECT INSTANCE —';
+  ['mainTerm','miniTerm'].forEach(i => document.getElementById(i).innerHTML = '');
+  applyStatus('offline');
+  document.getElementById('botList').innerHTML = '';
+  document.getElementById('botCount').textContent = '0';
+  loadBots();
+  toast(url ? 'Switched to ' + (HOSTS.find(h=>h.url===url)?.label||url) : 'Switched to local', 'info');
+}
+// Override apiFetch to prefix remote URL when a host is selected
+const _origFetch = window.fetch.bind(window);
+async function apiFetch(url, opts = {}) {
+  const fullUrl = currentHostUrl ? currentHostUrl + url : url;
+  try {
+    const r = await _origFetch(fullUrl, opts);
+    if (r.status === 401) { document.getElementById('loginOverlay').style.display = 'flex'; return null; }
+    return r;
+  } catch (e) { toast('Network error' + (currentHostUrl ? ' (' + (HOSTS.find(h=>h.url===currentHostUrl)?.label||currentHostUrl) + ')' : ''), 'error'); return null; }
+}
+
 const sock = io({ transports: ['websocket', 'polling'] });
 let curBot = null, botRegistry = {}, startTimes = {}, uptimeIv = null, resIv = null;
 let currentUser = '', authMode = 'login';
@@ -1105,14 +1218,6 @@ function navTo(name, el) {
   if (name === 'resources') startRes(); else stopRes();
 }
 
-/* ── api helpers ── */
-async function apiFetch(url, opts = {}) {
-  try {
-    const r = await fetch(url, opts);
-    if (r.status === 401) { document.getElementById('loginOverlay').style.display = 'flex'; return null; }
-    return r;
-  } catch (e) { toast('Network error', 'error'); return null; }
-}
 
 /* ── auth ── */
 async function checkAuth() {
@@ -1333,7 +1438,11 @@ async function loadFiles() {
 
     const fnLink = document.createElement('span');
     fnLink.className = 'fn-link'; fnLink.id = 'fnl_' + rid;
-    fnLink.title = f.name; fnLink.textContent = f.name;
+    // Show only the base filename; full relative path in tooltip
+    const displayName = f.name.split('/').pop();
+    const dirPath = f.name.includes('/') ? f.name.split('/').slice(0, -1).join('/') : '';
+    fnLink.title = f.name;
+    fnLink.textContent = displayName;
     fnLink.onclick = () => editFile(f.name);
 
     // rename area
@@ -1343,7 +1452,7 @@ async function loadFiles() {
     const fnInput = document.createElement('input');
     fnInput.className = 'fn-rename-input'; fnInput.id = 'fni_' + rid;
     // Pre-fill with just the base filename (last component)
-    fnInput.value = f.name.split('/').pop();
+    fnInput.value = displayName;
     fnInput.onkeydown = e => {
       if (e.key === 'Enter') doRename(rid);
       if (e.key === 'Escape') cancelRename(rid);
@@ -1358,7 +1467,15 @@ async function loadFiles() {
     fnCancel.onclick = () => cancelRename(rid);
 
     fnRename.append(fnInput, fnOk, fnCancel);
-    fnCell.append(fnIcon, fnLink, fnRename);
+    if (dirPath) {
+      const dirSpan = document.createElement('span');
+      dirSpan.style.cssText = 'color:var(--text-3);font-size:10px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px';
+      dirSpan.title = dirPath;
+      dirSpan.textContent = dirPath + '/';
+      fnCell.append(fnIcon, dirSpan, fnLink, fnRename);
+    } else {
+      fnCell.append(fnIcon, fnLink, fnRename);
+    }
     tdName.appendChild(fnCell);
 
     // --- type cell ---
@@ -1710,8 +1827,33 @@ function toast(msg, type = 'success') {
   setTimeout(() => { t.style.transition = 'all .35s'; t.style.opacity = '0'; t.style.transform = 'translateX(18px)'; setTimeout(() => t.remove(), 350); }, 3500);
 }
 
+/* ── add host modal ── */
+function openAddHostModal() {
+  document.getElementById('ahUrl').value = '';
+  document.getElementById('ahLabel').value = '';
+  document.getElementById('mAddHost').classList.add('open');
+  setTimeout(() => document.getElementById('ahUrl').focus(), 80);
+}
+function submitAddHost() {
+  let url   = document.getElementById('ahUrl').value.trim();
+  const lbl = document.getElementById('ahLabel').value.trim();
+  if (!url) { toast('Host URL required', 'error'); return; }
+  if (!/^https?:\/\//.test(url)) url = 'http://' + url;
+  addHost(url, lbl || url.replace(/^https?:\/\//, ''));
+  closeModal('mAddHost');
+  toast('Host added', 'success');
+}
+
 /* ── boot ── */
-checkAuth().then(ok => { if (ok) { loadBots(); fetchRes(); setInterval(fetchRes, 5000); } });
+checkAuth().then(ok => {
+  if (ok) {
+    loadHostsFromStorage();
+    renderHostSwitcher();
+    loadBots();
+    fetchRes();
+    setInterval(fetchRes, 5000);
+  }
+});
 </script>
 </body>
 </html>"""
