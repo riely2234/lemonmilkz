@@ -432,7 +432,7 @@ body::after{
 /* ===================== MOBILE ===================== */
 .sidebar-overlay{
   display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);
-  z-index:0;opacity:0;transition:opacity .3s;cursor:pointer;
+  z-index:9000;opacity:0;transition:opacity .3s;cursor:pointer;
   backdrop-filter:blur(4px);
 }
 .sidebar-overlay.open{opacity:1}
@@ -748,25 +748,51 @@ body::after{
 .env-key{color:var(--amber)}
 
 /* ===================== FILE TABLE ===================== */
-.file-table{width:100%;border-collapse:separate;border-spacing:0;min-width:520px}
+.file-table{width:100%;border-collapse:separate;border-spacing:0;min-width:520px;table-layout:fixed}
 .file-table th{
   font-family:var(--font-mono);font-size:10px;text-transform:uppercase;
   letter-spacing:3px;color:var(--text-3);padding:13px 16px;
   border-bottom:1px solid var(--border-mid);text-align:left;font-weight:700;
   background:rgba(0,0,0,0.3);
 }
+.file-table th:nth-child(1){width:40%}
+.file-table th:nth-child(2){width:80px}
+.file-table th:nth-child(3){width:70px}
+.file-table th:nth-child(4){width:150px}
+.file-table th:nth-child(5){width:160px}
 .file-table td{
-  padding:13px 16px;font-size:13.5px;border-bottom:1px solid var(--border);
-  vertical-align:middle;font-family:var(--font-mono);
+  padding:11px 16px;font-size:13.5px;border-bottom:1px solid var(--border);
+  vertical-align:middle;font-family:var(--font-mono);overflow:hidden;
 }
 .file-table tr:last-child td{border-bottom:none}
 .file-table tr:hover td{background:rgba(0,229,255,0.03)}
+.file-name-cell{display:flex;align-items:center;gap:8px;width:100%;min-width:0}
 .file-name-link{
   display:flex;align-items:center;gap:9px;color:var(--cyan);cursor:pointer;
-  transition:all .18s;overflow:hidden;
+  transition:all .18s;min-width:0;flex:1;
 }
-.file-name-link:hover{color:#fff;transform:translateX(4px);text-shadow:0 0 10px var(--cyan-glow)}
-.file-name-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.file-name-link:hover{color:#fff;transform:translateX(3px);text-shadow:0 0 10px var(--cyan-glow)}
+.file-name-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.file-rename-wrap{flex:1;display:none;align-items:center;gap:6px;min-width:0}
+.file-rename-wrap.active{display:flex}
+.file-rename-input{
+  flex:1;background:rgba(0,0,0,0.6);border:1px solid var(--border-hi);
+  border-bottom:2px solid var(--amber);border-radius:5px;
+  padding:5px 10px;font-family:var(--font-mono);font-size:13px;
+  color:var(--amber);outline:none;min-width:0;
+}
+.file-rename-confirm{
+  background:var(--amber-dim);border:1px solid rgba(255,184,0,0.4);border-radius:4px;
+  color:var(--amber);font-size:11px;padding:4px 9px;cursor:pointer;
+  font-family:var(--font-mono);white-space:nowrap;transition:all .15s;flex-shrink:0;
+}
+.file-rename-confirm:hover{background:rgba(255,184,0,0.25)}
+.file-rename-cancel{
+  background:transparent;border:1px solid var(--border);border-radius:4px;
+  color:var(--text-3);font-size:11px;padding:4px 8px;cursor:pointer;
+  font-family:var(--font-mono);transition:all .15s;flex-shrink:0;
+}
+.file-rename-cancel:hover{color:var(--text);border-color:var(--border-hi)}
 .file-ext-badge{
   font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;
   padding:2px 7px;border-radius:4px;border:1px solid var(--border-mid);
@@ -1369,6 +1395,25 @@ body::after{
   </div>
 </div>
 
+<!-- RENAME MODAL -->
+<div class="modal-veil" id="mRename">
+  <div class="modal-box">
+    <div class="modal-title">RENAME <span class="modal-title-accent">FILE</span></div>
+    <div class="form-group">
+      <label class="form-label">Current Name</label>
+      <div id="rnOldName" style="font-family:var(--font-mono);font-size:13px;color:var(--text-2);padding:10px 14px;background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">New Name</label>
+      <input class="form-input" id="rnNewName" placeholder="new-filename.py" onkeydown="if(event.key==='Enter')renameFile()">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('mRename')">Cancel</button>
+      <button class="btn btn-amber" onclick="renameFile()">Rename</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const sock=io({transports:['websocket','polling']});
 let curBot=null,botRegistry={},startTimes={},uptimeIv=null,resIv=null,currentUser="",authMode='login';
@@ -1508,13 +1553,22 @@ async function loadFiles(){
   if(!files.length){tb.innerHTML=`<tr><td colspan="5"><div style="padding:40px;text-align:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px">DIRECTORY EMPTY</div></td></tr>`;return}
   tb.innerHTML=files.map(f=>{
     const ext=f.name.split('.').pop().toLowerCase(),c=EXT_COLORS[ext]||'#5A7A9A',ic=EXT_ICONS[ext]||'□',jn=JSON.stringify(f.name);
-    return `<tr>
-      <td><div class="file-name-link" onclick='editFile(${jn})'><span style="font-size:14px;opacity:.8">${ic}</span><span class="file-name-text" title="${escH(f.name)}">${escH(f.name)}</span></div></td>
+    const rid='rn_'+Math.random().toString(36).slice(2);
+    return `<tr id="row_${rid}">
+      <td><div class="file-name-cell">
+        <div class="file-name-link" id="lnk_${rid}" onclick='editFile(${jn})'><span style="font-size:14px;opacity:.8;flex-shrink:0">${ic}</span><span class="file-name-text" title="${escH(f.name)}">${escH(f.name)}</span></div>
+        <div class="file-rename-wrap" id="rnw_${rid}">
+          <input class="file-rename-input" id="rni_${rid}" value="${escH(f.name.split('/').pop())}" onkeydown="if(event.key==='Enter')commitInlineRename('${rid}',${jn});if(event.key==='Escape')cancelInlineRename('${rid}')">
+          <button class="file-rename-confirm" onclick="commitInlineRename('${rid}',${jn})">✓ Rename</button>
+          <button class="file-rename-cancel" onclick="cancelInlineRename('${rid}')">✕</button>
+        </div>
+      </div></td>
       <td><span class="file-ext-badge" style="color:${c};border-color:${c}30">.${ext}</span></td>
       <td style="color:var(--text-2)">${escH(f.size)}</td>
       <td style="color:var(--text-3);font-size:11px">${escH(f.modified)}</td>
       <td><div class="btn-row" style="flex-wrap:nowrap;gap:5px">
         <button class="btn btn-ghost btn-sm" onclick='editFile(${jn})' title="Edit" style="padding:5px 9px">✏</button>
+        <button class="btn btn-amber btn-sm" id="rnbtn_${rid}" onclick="toggleInlineRename('${rid}')" title="Rename" style="padding:5px 9px">⟳</button>
         <button class="btn btn-ghost btn-sm" onclick='dlFile(${jn})' title="Download" style="padding:5px 9px">↓</button>
         <button class="btn btn-red btn-sm" onclick='delFile(${jn})' title="Delete" style="padding:5px 9px">✕</button>
       </div></td>
@@ -1539,6 +1593,59 @@ async function createNewFile(){
 }
 async function delFile(name){if(!confirm(`Delete ${name}?`))return;await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(name)}`,{method:'DELETE'});loadFiles();toast('File deleted','success')}
 function dlFile(name){window.location.href=`/api/bot/${curBot}/file/${encodeURIComponent(name)}/download`}
+function openRenameModal(name){
+  if(!curBot)return;
+  document.getElementById('rnOldName').textContent=name;
+  const parts=name.split('/');const base=parts[parts.length-1];
+  document.getElementById('rnNewName').value=base;
+  document.getElementById('mRename').classList.add('open');
+  setTimeout(()=>{const inp=document.getElementById('rnNewName');inp.focus();const dot=base.lastIndexOf('.');inp.setSelectionRange(0,dot>0?dot:base.length)},80);
+}
+async function renameFile(){
+  const oldName=document.getElementById('rnOldName').textContent.trim();
+  const newBase=document.getElementById('rnNewName').value.trim();
+  if(!oldName||!newBase){toast('New name required','error');return}
+  const parts=oldName.split('/');parts[parts.length-1]=newBase;
+  const newName=parts.join('/');
+  if(newName===oldName){closeModal('mRename');return}
+  const r=await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(oldName)}/rename`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_name:newName})});
+  if(!r)return;
+  const res=await r.json();
+  if(res.error){toast(res.error,'error');return}
+  closeModal('mRename');document.getElementById('rnNewName').value='';loadFiles();toast(`Renamed to ${newBase}`,'success');
+}
+function toggleInlineRename(rid){
+  const lnk=document.getElementById('lnk_'+rid);
+  const rnw=document.getElementById('rnw_'+rid);
+  const btn=document.getElementById('rnbtn_'+rid);
+  const active=rnw.classList.contains('active');
+  if(active){cancelInlineRename(rid)}
+  else{
+    lnk.style.display='none';rnw.classList.add('active');
+    btn.textContent='✕';btn.title='Cancel rename';
+    const inp=document.getElementById('rni_'+rid);
+    inp.focus();const v=inp.value;const dot=v.lastIndexOf('.');
+    inp.setSelectionRange(0,dot>0?dot:v.length);
+  }
+}
+function cancelInlineRename(rid){
+  const lnk=document.getElementById('lnk_'+rid);
+  const rnw=document.getElementById('rnw_'+rid);
+  const btn=document.getElementById('rnbtn_'+rid);
+  lnk.style.display='';rnw.classList.remove('active');
+  btn.textContent='⟳';btn.title='Rename';
+}
+async function commitInlineRename(rid,oldName){
+  const newBase=document.getElementById('rni_'+rid).value.trim();
+  if(!newBase){toast('Name cannot be empty','error');return}
+  const parts=oldName.split('/');parts[parts.length-1]=newBase;
+  const newName=parts.join('/');
+  if(newName===oldName){cancelInlineRename(rid);return}
+  const r=await apiFetch(`/api/bot/${curBot}/file/${encodeURIComponent(oldName)}/rename`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_name:newName})});
+  if(!r)return;const res=await r.json();
+  if(res.error){toast(res.error,'error');return}
+  loadFiles();toast(`Renamed to ${newBase}`,'success');
+}
 
 async function handleUpload(files,isFolder){
   const fileArr=files?Array.from(files):[];
@@ -1835,6 +1942,21 @@ def del_file(bid, fn):
     if not fp: return jsonify({'error': 'invalid path'}), 403
     if os.path.exists(fp): os.remove(fp)
     return jsonify({'ok': True})
+
+@app.route('/api/bot/<bid>/file/<path:fn>/rename', methods=['POST'])
+def rename_file(bid, fn):
+    if not check_access(bid): return jsonify({'error': 'unauth'}), 401
+    new_name = (request.json or {}).get('new_name', '').strip()
+    if not new_name: return jsonify({'error': 'new_name required'}), 400
+    src = safe_path(bid, fn)
+    dst = safe_path(bid, new_name)
+    if not src: return jsonify({'error': 'invalid source path'}), 403
+    if not dst: return jsonify({'error': 'invalid destination path'}), 403
+    if not os.path.exists(src): return jsonify({'error': 'source not found'}), 404
+    if os.path.exists(dst): return jsonify({'error': 'a file with that name already exists'}), 409
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    os.rename(src, dst)
+    return jsonify({'ok': True, 'new_name': new_name})
 
 @app.route('/api/bot/<bid>/file/<path:fn>/download')
 def dl_file(bid, fn):
