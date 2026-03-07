@@ -176,19 +176,52 @@ def start_bot(bot_id, startup_file=None):
     ext = startup_file.rsplit('.', 1)[-1].lower()
 
     def _run_streaming(cmd, cwd=None, timeout=300):
-        """Run a command, streaming its output to the console. Returns returncode."""
+        """Run a command, streaming its output live to the console. Returns returncode."""
+        env = os.environ.copy()
+        env['PYTHONUNBUFFERED'] = '1'
+        env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
         proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, cwd=cwd)
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            cwd=cwd,
+            env=env,
+        )
+        import select as _select
+        import sys as _sys
+        deadline = time.time() + timeout
         try:
-            for line in iter(proc.stdout.readline, ''):
-                stripped = line.rstrip()
-                if stripped:
-                    emit_log(bot_id, stripped, 'default')
-            proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
+            while True:
+                remaining = deadline - time.time()
+                if remaining <= 0:
+                    proc.kill()
+                    emit_log(bot_id, '[Error] Command timed out.', 'error')
+                    return -1
+                # Use select on both stdout and stderr so neither blocks
+                reads = [proc.stdout, proc.stderr]
+                try:
+                    ready, _, _ = _select.select(reads, [], reads, 1.0)
+                except (ValueError, OSError):
+                    break
+                for stream in ready:
+                    line = stream.readline()
+                    if line:
+                        stripped = line.rstrip()
+                        if stripped:
+                            emit_log(bot_id, stripped, 'default')
+                if proc.poll() is not None:
+                    # Drain remaining output
+                    for stream in [proc.stdout, proc.stderr]:
+                        for line in stream:
+                            stripped = line.rstrip()
+                            if stripped:
+                                emit_log(bot_id, stripped, 'default')
+                    break
+        except Exception as e:
+            emit_log(bot_id, f'[Error] Stream error: {e}', 'error')
             proc.kill()
-            emit_log(bot_id, '[Error] Command timed out.', 'error')
             return -1
         return proc.returncode
 
@@ -197,7 +230,9 @@ def start_bot(bot_id, startup_file=None):
         if os.path.exists(req):
             emit_log(bot_id, '[System] Installing Python requirements…', 'system')
             rc = _run_streaming(
-                [sys.executable, '-m', 'pip', 'install', '--no-input', '-r', req])
+                [sys.executable, '-m', 'pip', 'install',
+                 '--no-input', '--no-color', '--disable-pip-version-check',
+                 '--progress-bar', 'off', '-r', req])
             if rc != 0:
                 emit_log(bot_id, '[Error] pip install failed. See output above.', 'error')
                 return
