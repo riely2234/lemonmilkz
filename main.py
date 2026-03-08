@@ -216,9 +216,12 @@ def _run_install(bot_id, cmd, cwd=None, timeout=300):
 
 def _patch_py_for_asyncio(bot_dir, startup_file):
     """
-    Inject asyncio event loop fix at the top of the user's Python file
-    if it uses discord.py / py-cord / nextcord and doesn't already have the fix.
-    Returns True if patched, False if not needed.
+    Inject asyncio event loop fix only when truly needed.
+    - Skips if uvloop/winloop/custom EventLoopPolicy already present (they manage their own loop)
+    - Skips if already patched by Vortex
+    - Skips if the file already calls set_event_loop / new_event_loop
+    - Only applies to discord.py / py-cord / nextcord / disnake bots
+    Returns True if patched, False if skipped.
     """
     full = os.path.join(bot_dir, startup_file)
     try:
@@ -227,18 +230,20 @@ def _patch_py_for_asyncio(bot_dir, startup_file):
     except Exception:
         return False
 
-    needs_fix = (
-        ('discord' in src or 'nextcord' in src or 'disnake' in src)
-        and 'asyncio.set_event_loop' not in src
-        and 'asyncio.new_event_loop' not in src
-    )
-    if not needs_fix:
+    uses_discord  = any(lib in src for lib in ('import discord', 'from discord', 'import nextcord', 'from nextcord', 'import disnake', 'from disnake'))
+    already_fixed = '[Vortex]' in src or 'set_event_loop' in src or 'new_event_loop' in src
+    uses_uvloop   = 'uvloop' in src or 'winloop' in src or 'EventLoopPolicy' in src
+
+    if not uses_discord or already_fixed or uses_uvloop:
         return False
 
     patch = (
-        '# [Vortex] asyncio event loop compatibility patch\n'
+        '# [Vortex] asyncio compatibility patch — safe for Python 3.10+\n'
         'import asyncio as _vortex_asyncio\n'
-        '_vortex_asyncio.set_event_loop(_vortex_asyncio.new_event_loop())\n'
+        'try:\n'
+        '    _vortex_asyncio.get_event_loop()\n'
+        'except RuntimeError:\n'
+        '    _vortex_asyncio.set_event_loop(_vortex_asyncio.new_event_loop())\n'
         '# [/Vortex]\n'
     )
 
@@ -397,8 +402,12 @@ def start_bot(bot_id, startup_file=None, _restart_count=0):
 
     # ── launch ──────────────────────────────────────────────────────────────
     run_env = os.environ.copy()
-    run_env.update(bot_cfg.get('env', {}))
+    # Inject user-defined env vars — these become real environment variables in the child process
+    for _k, _v in bot_cfg.get('env', {}).items():
+        if _k:
+            run_env[str(_k)] = str(_v)
     run_env['PYTHONUNBUFFERED'] = '1'
+    run_env['PYTHONDONTWRITEBYTECODE'] = '1'
 
     emit_log(bot_id, f'[System] Starting {startup_file}…', 'system')
     try:
