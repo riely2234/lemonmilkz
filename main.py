@@ -19,6 +19,10 @@ from flask_socketio import SocketIO, join_room
 from werkzeug.utils import secure_filename
 
 log = getLogger('vortexhost')
+
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mGKHFABCDJhls]|\x1b\][^\x07]*\x07|\x1b[\[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+def strip_ansi(s):
+    return _ANSI_RE.sub('', s)
 log.setLevel(logging.INFO)
 _h = StreamHandler()
 _h.setFormatter(Formatter('%(asctime)s %(levelname)s %(message)s'))
@@ -181,9 +185,9 @@ def _run_install(bot_id, cmd, cwd=None, timeout=300):
                 buf += chunk
                 while b'\n' in buf:
                     line, buf = buf.split(b'\n', 1)
-                    q.put(line.decode('utf-8', errors='replace').rstrip())
+                    q.put(strip_ansi(line.decode('utf-8', errors='replace').rstrip()))
             if buf:
-                q.put(buf.decode('utf-8', errors='replace').rstrip())
+                q.put(strip_ansi(buf.decode('utf-8', errors='replace').rstrip()))
             try: os.close(r_fd)
             except: pass
             p.wait()
@@ -451,11 +455,11 @@ def start_bot(bot_id, startup_file=None, _restart_count=0):
                     buf += chunk
                     while b'\n' in buf:
                         line, buf = buf.split(b'\n', 1)
-                        txt = line.decode('utf-8', errors='replace').rstrip()
+                        txt = strip_ansi(line.decode('utf-8', errors='replace').rstrip())
                         if txt:
                             emit_log(bot_id, txt, 'default')
                 if buf:
-                    txt = buf.decode('utf-8', errors='replace').rstrip()
+                    txt = strip_ansi(buf.decode('utf-8', errors='replace').rstrip())
                     if txt:
                         emit_log(bot_id, txt, 'default')
             except Exception:
