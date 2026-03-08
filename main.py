@@ -605,7 +605,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .sidebar-clock{font-family:var(--font-mono);font-size:13px;color:var(--cyan);font-weight:500}
 
 /* MOBILE */
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9400;opacity:0;transition:opacity .3s;cursor:pointer;backdrop-filter:blur(4px)}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:0000;opacity:0;transition:opacity .3s;cursor:pointer;backdrop-filter:blur(4px)}
 .sidebar-overlay.open{opacity:1}
 .mobile-bottom-nav{display:none;position:fixed;bottom:14px;left:12px;right:12px;height:64px;background:rgba(10,13,22,0.92);backdrop-filter:blur(30px);border:1px solid var(--border-mid);border-radius:18px;z-index:9000;justify-content:space-around;align-items:center;padding:0 8px;box-shadow:0 8px 40px rgba(0,0,0,0.8)}
 .m-nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--text-3);cursor:pointer;transition:all .25s var(--ease-spring);padding:7px 10px;border-radius:12px;flex:1}
