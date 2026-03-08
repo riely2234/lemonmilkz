@@ -175,182 +175,179 @@ def start_bot(bot_id, startup_file=None):
 
     ext = startup_file.rsplit('.', 1)[-1].lower()
 
-    def _run_streaming(cmd, cwd=None, timeout=300):
-        """Run a command, streaming its output live to the console. Returns returncode."""
-        env = os.environ.copy()
-        env['PYTHONUNBUFFERED'] = '1'
-        env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            cwd=cwd,
-            env=env,
-        )
-        import select as _select
-        import sys as _sys
+    # ── streaming helper ─────────────────────────────────────────────────────
+    def _stream(cmd, cwd=None, timeout=300):
+        """Run cmd, pipe stdout+stderr live to console. Return exit code."""
+        run_env = os.environ.copy()
+        run_env['PYTHONUNBUFFERED'] = '1'
+        run_env['PIP_NO_COLOR'] = '1'
+        run_env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,   # merge stderr into stdout
+                stdin=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,
+                cwd=cwd,
+                env=run_env,
+            )
+        except FileNotFoundError as e:
+            emit_log(bot_id, f'[Error] Command not found: {e}', 'error')
+            return -1
+
         deadline = time.time() + timeout
         try:
             while True:
-                remaining = deadline - time.time()
-                if remaining <= 0:
+                line = proc.stdout.readline()
+                if line:
+                    emit_log(bot_id, line.rstrip(), 'default')
+                else:
+                    # readline() returned empty → process ended
+                    break
+                if time.time() > deadline:
                     proc.kill()
-                    emit_log(bot_id, '[Error] Command timed out.', 'error')
+                    emit_log(bot_id, '[Error] Install timed out.', 'error')
                     return -1
-                # Use select on both stdout and stderr so neither blocks
-                reads = [proc.stdout, proc.stderr]
-                try:
-                    ready, _, _ = _select.select(reads, [], reads, 1.0)
-                except (ValueError, OSError):
-                    break
-                for stream in ready:
-                    line = stream.readline()
-                    if line:
-                        stripped = line.rstrip()
-                        if stripped:
-                            emit_log(bot_id, stripped, 'default')
-                if proc.poll() is not None:
-                    # Drain remaining output
-                    for stream in [proc.stdout, proc.stderr]:
-                        for line in stream:
-                            stripped = line.rstrip()
-                            if stripped:
-                                emit_log(bot_id, stripped, 'default')
-                    break
         except Exception as e:
-            emit_log(bot_id, f'[Error] Stream error: {e}', 'error')
-            proc.kill()
+            emit_log(bot_id, f'[Error] Stream read error: {e}', 'error')
+            try: proc.kill()
+            except: pass
             return -1
+
+        proc.wait()
         return proc.returncode
 
+    # ── dependency install / build ───────────────────────────────────────────
     if ext == 'py':
         req = os.path.join(bot_dir, 'requirements.txt')
         if os.path.exists(req):
             emit_log(bot_id, '[System] Installing Python requirements…', 'system')
-            rc = _run_streaming(
-                [sys.executable, '-m', 'pip', 'install',
-                 '--no-input', '--no-color', '--disable-pip-version-check',
-                 '--progress-bar', 'off', '-r', req])
+            rc = _stream([
+                sys.executable, '-m', 'pip', 'install',
+                '--no-input', '--no-color',
+                '--disable-pip-version-check',
+                '--progress-bar', 'off',
+                '-r', req,
+            ])
             if rc != 0:
-                emit_log(bot_id, '[Error] pip install failed. See output above.', 'error')
+                emit_log(bot_id, '[Error] pip install failed — see output above.', 'error')
                 return
             emit_log(bot_id, '[System] Requirements installed.', 'success')
 
-    elif ext == 'js':
+    elif ext in ('js', 'ts'):
         pkg = os.path.join(bot_dir, 'package.json')
         if os.path.exists(pkg):
             emit_log(bot_id, '[System] Running npm install…', 'system')
-            rc = _run_streaming(['npm', 'install', '--no-progress'], cwd=bot_dir)
+            rc = _stream(['npm', 'install', '--no-progress', '--no-audit', '--no-fund'],
+                         cwd=bot_dir)
             if rc != 0:
-                emit_log(bot_id, '[Error] npm install failed. See output above.', 'error')
+                emit_log(bot_id, '[Error] npm install failed — see output above.', 'error')
                 return
             emit_log(bot_id, '[System] npm packages installed.', 'success')
-
-    elif ext == 'ts':
-        pkg = os.path.join(bot_dir, 'package.json')
-        if os.path.exists(pkg):
-            emit_log(bot_id, '[System] Running npm install…', 'system')
-            rc = _run_streaming(['npm', 'install', '--no-progress'], cwd=bot_dir)
-            if rc != 0:
-                emit_log(bot_id, '[Error] npm install failed. See output above.', 'error')
-                return
-            emit_log(bot_id, '[System] npm packages installed.', 'success')
-        ts_node = shutil.which('ts-node') or shutil.which('npx')
-        if not ts_node:
+        if ext == 'ts' and not shutil.which('ts-node') and not shutil.which('npx'):
             emit_log(bot_id, '[Error] ts-node / npx not found. Install Node.js and ts-node.', 'error')
             return
 
     elif ext == 'rs':
-        cargo_toml = os.path.join(bot_dir, 'Cargo.toml')
-        if not os.path.exists(cargo_toml):
-            emit_log(bot_id, '[Error] Cargo.toml not found in bot directory.', 'error')
+        if not os.path.exists(os.path.join(bot_dir, 'Cargo.toml')):
+            emit_log(bot_id, '[Error] Cargo.toml not found.', 'error')
             return
         if not shutil.which('cargo'):
             emit_log(bot_id, '[Error] cargo not found. Install Rust toolchain.', 'error')
             return
-        emit_log(bot_id, '[System] Building Rust project (cargo build --release)…', 'system')
-        rc = _run_streaming(['cargo', 'build', '--release'], cwd=bot_dir, timeout=600)
+        emit_log(bot_id, '[System] Building Rust project…', 'system')
+        rc = _stream(['cargo', 'build', '--release'], cwd=bot_dir, timeout=600)
         if rc != 0:
-            emit_log(bot_id, '[Error] cargo build failed. See output above.', 'error')
+            emit_log(bot_id, '[Error] cargo build failed — see output above.', 'error')
             return
         emit_log(bot_id, '[System] Rust build successful.', 'success')
 
     elif ext == 'cs':
-        csproj_files = [f for f in os.listdir(bot_dir) if f.endswith('.csproj')]
-        if not csproj_files:
-            emit_log(bot_id, '[Error] No .csproj file found in bot directory.', 'error')
+        if not any(f.endswith('.csproj') for f in os.listdir(bot_dir)):
+            emit_log(bot_id, '[Error] No .csproj file found.', 'error')
             return
         if not shutil.which('dotnet'):
             emit_log(bot_id, '[Error] dotnet not found. Install the .NET SDK.', 'error')
             return
-        emit_log(bot_id, '[System] Building C# project (dotnet build)…', 'system')
-        rc = _run_streaming(['dotnet', 'build', '--configuration', 'Release'], cwd=bot_dir, timeout=600)
+        emit_log(bot_id, '[System] Building C# project…', 'system')
+        rc = _stream(['dotnet', 'build', '--configuration', 'Release'], cwd=bot_dir, timeout=600)
         if rc != 0:
-            emit_log(bot_id, '[Error] dotnet build failed. See output above.', 'error')
+            emit_log(bot_id, '[Error] dotnet build failed — see output above.', 'error')
             return
         emit_log(bot_id, '[System] C# build successful.', 'success')
 
+    # ── build run command ────────────────────────────────────────────────────
     if ext == 'py':
         cmd = [sys.executable, '-u', full_path]
     elif ext == 'js':
         cmd = ['node', full_path]
     elif ext == 'ts':
-        if shutil.which('ts-node'):
-            cmd = ['ts-node', full_path]
-        else:
-            cmd = ['npx', 'ts-node', full_path]
+        cmd = ['ts-node', full_path] if shutil.which('ts-node') else ['npx', 'ts-node', full_path]
     elif ext == 'sh':
         cmd = ['bash', full_path]
     elif ext == 'rs':
         pkg_name = None
         try:
             with open(os.path.join(bot_dir, 'Cargo.toml')) as f:
-                content = f.read()
-            m = re.search(r'^\s*name\s*=\s*"([^"]+)"', content, re.MULTILINE)
+                _ct = f.read()
+            m = re.search(r'^\s*name\s*=\s*"([^"]+)"', _ct, re.MULTILINE)
             if m:
                 pkg_name = m.group(1)
         except Exception:
             pass
-        bin_dir  = os.path.join(bot_dir, 'target', 'release')
-        if pkg_name and os.path.isfile(os.path.join(bin_dir, pkg_name)):
-            cmd = [os.path.join(bin_dir, pkg_name)]
-        elif pkg_name and os.path.isfile(os.path.join(bin_dir, pkg_name + '.exe')):
-            cmd = [os.path.join(bin_dir, pkg_name + '.exe')]
-        else:
+        bin_dir = os.path.join(bot_dir, 'target', 'release')
+        binary  = None
+        if pkg_name:
+            for suffix in ('', '.exe'):
+                candidate = os.path.join(bin_dir, pkg_name + suffix)
+                if os.path.isfile(candidate):
+                    binary = candidate
+                    break
+        if not binary and os.path.isdir(bin_dir):
+            skip = ('.d', '.rlib', '.pdb', '.exp', '.lib', '.so', '.dylib', '.dll')
             candidates = [
                 f for f in os.listdir(bin_dir)
                 if os.path.isfile(os.path.join(bin_dir, f))
-                and not f.endswith(('.d', '.rlib', '.pdb', '.exp', '.lib', '.so', '.dylib', '.dll'))
-                and not f.startswith('.')
-            ] if os.path.isdir(bin_dir) else []
-            if not candidates:
-                emit_log(bot_id, '[Error] Could not locate compiled Rust binary.', 'error')
-                return
-            cmd = [os.path.join(bin_dir, candidates[0])]
-        emit_log(bot_id, f'[System] Running binary: {cmd[0]}', 'system')
+                and not f.endswith(skip) and not f.startswith('.')
+            ]
+            if candidates:
+                binary = os.path.join(bin_dir, candidates[0])
+        if not binary:
+            emit_log(bot_id, '[Error] Could not locate compiled Rust binary.', 'error')
+            return
+        cmd = [binary]
+        emit_log(bot_id, f'[System] Running binary: {binary}', 'system')
     elif ext == 'cs':
         cmd = ['dotnet', 'run', '--configuration', 'Release', '--project', bot_dir]
     else:
         emit_log(bot_id, f'[Error] Unsupported extension: .{ext}', 'error')
         return
 
+    # ── launch process ───────────────────────────────────────────────────────
     use_text = (ext != 'rs')
+    run_env  = os.environ.copy()
+    run_env.update(bot_cfg.get('env', {}))
+    run_env['PYTHONUNBUFFERED'] = '1'
 
-    env = os.environ.copy()
-    env.update(bot_cfg.get('env', {}))
     emit_log(bot_id, f'[System] Starting {startup_file}…', 'system')
-
     try:
         proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            stdin=subprocess.PIPE, text=use_text, cwd=bot_dir, env=env)
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.PIPE,
+            text=use_text,
+            bufsize=1,
+            cwd=bot_dir,
+            env=run_env,
+        )
         start_t = time.time()
         bots.setdefault(bot_id, {}).update({
-            'process': proc,
+            'process':      proc,
             'startup_file': startup_file,
-            'start_time': start_t,
+            'start_time':   start_t,
             'auto_restart': bot_cfg.get('auto_restart', False),
         })
         bot_cfg['startup_file'] = startup_file
@@ -359,25 +356,28 @@ def start_bot(bot_id, startup_file=None):
         broadcast_status(bot_id, 'online', start_t)
 
         def _read():
-            if use_text:
-                for line in iter(proc.stdout.readline, ''):
-                    emit_log(bot_id, line.rstrip(), 'default')
-            else:
-                for raw in iter(proc.stdout.readline, b''):
-                    emit_log(bot_id, raw.decode('utf-8', errors='replace').rstrip(), 'default')
+            try:
+                if use_text:
+                    for line in iter(proc.stdout.readline, ''):
+                        emit_log(bot_id, line.rstrip(), 'default')
+                else:
+                    for raw in iter(proc.stdout.readline, b''):
+                        emit_log(bot_id, raw.decode('utf-8', errors='replace').rstrip(), 'default')
+            except Exception:
+                pass
             proc.wait()
             broadcast_status(bot_id, 'offline')
-            emit_log(bot_id, f'[System] Exited code {proc.returncode}.', 'system')
-            should_restart = bots.get(bot_id, {}).get('auto_restart') and proc.returncode != 0
-            if should_restart:
+            emit_log(bot_id, f'[System] Exited with code {proc.returncode}.', 'system')
+            if bots.get(bot_id, {}).get('auto_restart') and proc.returncode != 0:
                 emit_log(bot_id, '[System] Auto-restart in 3s…', 'system')
                 time.sleep(3)
                 if bots.get(bot_id, {}).get('auto_restart') and not is_running(bot_id):
                     start_bot(bot_id, startup_file)
 
         threading.Thread(target=_read, daemon=True).start()
+
     except Exception as e:
-        emit_log(bot_id, f'[Error] {e}', 'error')
+        emit_log(bot_id, f'[Error] Failed to start: {e}', 'error')
 
 def stop_bot(bot_id, disable_auto_restart=True):
     if bot_id in bots:
