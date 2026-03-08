@@ -177,45 +177,56 @@ def start_bot(bot_id, startup_file=None):
 
     # ── streaming helper ─────────────────────────────────────────────────────
     def _stream(cmd, cwd=None, timeout=300):
-        """Run cmd, pipe stdout+stderr live to console. Return exit code."""
+        """Run cmd using raw os.pipe() to bypass eventlet monkey-patching. Return exit code."""
         run_env = os.environ.copy()
         run_env['PYTHONUNBUFFERED'] = '1'
         run_env['PIP_NO_COLOR'] = '1'
         run_env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
         try:
+            r_fd, w_fd = os.pipe()
             proc = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,   # merge stderr into stdout
+                stdout=w_fd,
+                stderr=w_fd,
                 stdin=subprocess.DEVNULL,
-                text=True,
-                bufsize=1,
+                close_fds=True,
                 cwd=cwd,
                 env=run_env,
             )
+            os.close(w_fd)
         except FileNotFoundError as e:
             emit_log(bot_id, f'[Error] Command not found: {e}', 'error')
             return -1
+        except Exception as e:
+            emit_log(bot_id, f'[Error] Failed to launch: {e}', 'error')
+            return -1
 
         deadline = time.time() + timeout
+        buf = b''
         try:
             while True:
-                line = proc.stdout.readline()
-                if line:
-                    emit_log(bot_id, line.rstrip(), 'default')
-                else:
-                    # readline() returned empty → process ended
+                try:
+                    chunk = os.read(r_fd, 4096)
+                except OSError:
                     break
+                if not chunk:
+                    break
+                buf += chunk
+                while b'\n' in buf:
+                    line, buf = buf.split(b'\n', 1)
+                    emit_log(bot_id, line.decode('utf-8', errors='replace').rstrip(), 'default')
                 if time.time() > deadline:
                     proc.kill()
-                    emit_log(bot_id, '[Error] Install timed out.', 'error')
+                    emit_log(bot_id, '[Error] Command timed out.', 'error')
+                    os.close(r_fd)
                     return -1
         except Exception as e:
             emit_log(bot_id, f'[Error] Stream read error: {e}', 'error')
-            try: proc.kill()
+        finally:
+            try: os.close(r_fd)
             except: pass
-            return -1
-
+        if buf:
+            emit_log(bot_id, buf.decode('utf-8', errors='replace').rstrip(), 'default')
         proc.wait()
         return proc.returncode
 
@@ -235,24 +246,37 @@ def start_bot(bot_id, startup_file=None):
                 pip_env['PIP_NO_COLOR']     = '1'
                 pip_env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
                 try:
+                    # Use os.pipe() to bypass eventlet's monkey-patched file I/O
+                    r_fd, w_fd = os.pipe()
                     p = subprocess.Popen(
                         [sys.executable, '-m', 'pip', 'install',
                          '--no-input', '--no-color',
                          '--disable-pip-version-check',
                          '--progress-bar', 'off',
                          '-r', req],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
+                        stdout=w_fd,
+                        stderr=w_fd,
                         stdin=subprocess.DEVNULL,
-                        text=True, bufsize=1,
+                        close_fds=True,
                         env=pip_env,
                     )
-                    for line in p.stdout:
-                        pip_queue.put(line.rstrip())
+                    os.close(w_fd)  # close write end in parent
+                    buf = b''
+                    while True:
+                        chunk = os.read(r_fd, 4096)
+                        if not chunk:
+                            break
+                        buf += chunk
+                        while b'\n' in buf:
+                            line, buf = buf.split(b'\n', 1)
+                            pip_queue.put(line.decode('utf-8', errors='replace').rstrip())
+                    if buf:
+                        pip_queue.put(buf.decode('utf-8', errors='replace').rstrip())
+                    os.close(r_fd)
                     p.wait()
                     pip_rc[0] = p.returncode
                 except Exception as e:
-                    pip_queue.put(f'[Error] pip thread: {e}')
+                    pip_queue.put(f'[Error] pip failed: {e}')
                     pip_rc[0] = -1
                 finally:
                     pip_queue.put(None)  # sentinel
@@ -378,38 +402,60 @@ def start_bot(bot_id, startup_file=None):
 
     emit_log(bot_id, f'[System] Starting {startup_file}…', 'system')
     try:
+        # Use os.pipe() for stdout to avoid eventlet monkey-patch issues
+        out_r, out_w = os.pipe()
+        in_r,  in_w  = os.pipe()   # stdin pipe
+
         proc = subprocess.Popen(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.PIPE,
-            text=use_text,
-            bufsize=1,
+            stdout=out_w,
+            stderr=out_w,
+            stdin=in_r,
+            close_fds=True,
             cwd=bot_dir,
             env=run_env,
         )
+        os.close(out_w)
+        os.close(in_r)
+
+        # Wrap raw fds in Python file objects for easy use
+        proc._vortex_stdout_fd = out_r
+        proc._vortex_stdin_fd  = in_w
+
         start_t = time.time()
         bots.setdefault(bot_id, {}).update({
             'process':      proc,
             'startup_file': startup_file,
             'start_time':   start_t,
             'auto_restart': bot_cfg.get('auto_restart', False),
+            'stdin_fd':     in_w,
         })
         bot_cfg['startup_file'] = startup_file
         cfg[bot_id] = bot_cfg
         save_config(cfg)
         broadcast_status(bot_id, 'online', start_t)
 
-        def _read():
+        def _read(r_fd=out_r):
+            buf = b''
             try:
-                if use_text:
-                    for line in iter(proc.stdout.readline, ''):
-                        emit_log(bot_id, line.rstrip(), 'default')
-                else:
-                    for raw in iter(proc.stdout.readline, b''):
-                        emit_log(bot_id, raw.decode('utf-8', errors='replace').rstrip(), 'default')
+                while True:
+                    try:
+                        chunk = os.read(r_fd, 4096)
+                    except OSError:
+                        break
+                    if not chunk:
+                        break
+                    buf += chunk
+                    while b'\n' in buf:
+                        line, buf = buf.split(b'\n', 1)
+                        emit_log(bot_id, line.decode('utf-8', errors='replace').rstrip(), 'default')
+                if buf:
+                    emit_log(bot_id, buf.decode('utf-8', errors='replace').rstrip(), 'default')
             except Exception:
                 pass
+            finally:
+                try: os.close(r_fd)
+                except: pass
             proc.wait()
             broadcast_status(bot_id, 'offline')
             emit_log(bot_id, f'[System] Exited with code {proc.returncode}.', 'system')
@@ -2017,9 +2063,13 @@ def input_route(bid):
         return jsonify({'error': 'Input too long'}), 400
     if bid in bots and bots[bid].get('process'):
         p = bots[bid]['process']
-        if p.poll() is None and p.stdin:
+        if p.poll() is None:
             try:
-                p.stdin.write(inp); p.stdin.flush()
+                stdin_fd = bots[bid].get('stdin_fd')
+                if stdin_fd is not None:
+                    os.write(stdin_fd, inp.encode('utf-8', errors='replace'))
+                elif p.stdin:
+                    p.stdin.write(inp); p.stdin.flush()
             except Exception:
                 pass
     return jsonify({'ok': True})
