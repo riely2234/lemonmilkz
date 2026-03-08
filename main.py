@@ -630,6 +630,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .runtime-btn:hover{color:var(--text);background:rgba(255,255,255,0.07)}
 .runtime-btn.active.rt-py{background:rgba(0,255,127,0.12);color:var(--green);border:1px solid rgba(0,255,127,0.35);box-shadow:0 0 10px rgba(0,255,127,0.1)}
 .runtime-btn.active.rt-ts{background:rgba(49,120,198,0.18);color:#61B8FF;border:1px solid rgba(49,120,198,0.45);box-shadow:0 0 10px rgba(49,120,198,0.15)}
+.runtime-btn.active.rt-js{background:rgba(255,184,0,0.14);color:#FFB800;border:1px solid rgba(255,184,0,0.45);box-shadow:0 0 10px rgba(255,184,0,0.12)}
 .runtime-btn.active.rt-rs{background:rgba(247,76,0,0.14);color:#FF8050;border:1px solid rgba(247,76,0,0.4);box-shadow:0 0 10px rgba(247,76,0,0.12)}
 .runtime-btn.active.rt-cs{background:rgba(155,79,202,0.14);color:#C080FF;border:1px solid rgba(155,79,202,0.4);box-shadow:0 0 10px rgba(155,79,202,0.12)}
 .runtime-sep{width:1px;height:14px;background:var(--border-mid);flex-shrink:0}
@@ -968,6 +969,10 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
             <span class="runtime-icon">🐍</span> PY
           </button>
           <div class="runtime-sep"></div>
+          <button class="runtime-btn rt-js" onclick="setRuntime('js')" title="JavaScript">
+            <span class="runtime-icon">⚡</span> JS
+          </button>
+          <div class="runtime-sep"></div>
           <button class="runtime-btn rt-ts" onclick="setRuntime('ts')" title="TypeScript">
             <span class="runtime-icon">⟨⟩</span> TS
           </button>
@@ -1277,6 +1282,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 ══════════════════════════════════════════════════════ */
 const RUNTIMES = {
   py: { label: 'Python',     ext: 'py', defaultFile: 'main.py',     icon: '🐍' },
+  js: { label: 'JavaScript', ext: 'js', defaultFile: 'index.js',    icon: '⚡' },
   ts: { label: 'TypeScript', ext: 'ts', defaultFile: 'index.ts',    icon: '⟨⟩' },
   rs: { label: 'Rust',       ext: 'rs', defaultFile: 'src/main.rs', icon: '⚙'  },
   cs: { label: 'C#',         ext: 'cs', defaultFile: 'Program.cs',  icon: '◆'  },
@@ -1305,7 +1311,7 @@ function setRuntime(rt) {
 function detectRuntime(sf) {
   if (!sf) return;
   const ext = sf.split('.').pop().toLowerCase();
-  const map = { py: 'py', ts: 'ts', js: 'ts', rs: 'rs', cs: 'cs', sh: 'py' };
+  const map = { py: 'py', js: 'js', ts: 'ts', rs: 'rs', cs: 'cs', sh: 'py', mjs: 'js', cjs: 'js' };
   const rt = map[ext];
   if (rt && rt !== currentRuntime) setRuntime(rt);
 }
