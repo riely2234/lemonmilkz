@@ -1,2 +1,2 @@
 [phases.setup]
-nixPkgs = ["dotnet-sdk", "nodejs", "rustup"]
+nixPkgs = ["...", "dotnet-sdk", "nodejs", "rustup"]
