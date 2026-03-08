@@ -121,8 +121,8 @@ def check_access(bot_id):
 
 def emit_log(bot_id, msg, level='default'):
     cfg = load_config().get(bot_id, {})
-    listeners = [cfg.get('owner')] + cfg.get('shared_with', [])
-    for u in set(listeners):
+    listeners = list({u for u in [cfg.get('owner')] + cfg.get('shared_with', []) if u})
+    for u in listeners:
         if u:
             with contextlib.suppress(Exception):
                 socketio.emit('console_log',
@@ -723,6 +723,8 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .log-tag.ok{background:var(--green-dim);color:var(--green);border:1px solid rgba(0,255,127,0.3)}
 .log-tag.warn{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(255,184,0,0.3)}
 .log-tag.out{background:rgba(255,255,255,0.05);color:var(--text-2);border:1px solid var(--border)}
+.log-tag.in{background:rgba(0,229,255,0.08);color:var(--cyan);border:1px solid rgba(0,229,255,0.3)}
+.log-msg.in{color:var(--cyan);opacity:0.85}
 .log-msg{flex:1;word-break:break-all}
 .log-msg.sys{color:var(--blue)}.log-msg.err{color:var(--red)}.log-msg.ok{color:var(--green)}.log-msg.warn{color:var(--amber)}.log-msg.out{color:var(--text-2)}
 .term-input-wrap{display:flex;align-items:center;gap:12px;background:rgba(0,0,0,0.5);border-top:1px solid var(--border);padding:12px 18px;transition:all .2s}
@@ -1568,7 +1570,7 @@ async function deleteBot() {
 
 /* ── console ── */
 function appendLog(msg, level, ts) {
-  const tagMap = { system:'sys', error:'err', success:'ok', warn:'warn', default:'out' };
+  const tagMap = { system:'sys', error:'err', success:'ok', warn:'warn', default:'out', stdin:'in' };
   const tag = tagMap[level] || 'out', t = ts || new Date().toTimeString().slice(0, 8);
   const row = `<div class="log-row"><span class="log-ts">${escH(t)}</span><span class="log-tag ${tag}">${tag}</span><span class="log-msg ${tag}">${escH(msg)}</span></div>`;
   ['mainTerm','miniTerm'].forEach(id => { const el = document.getElementById(id); if (el) { el.innerHTML += row; el.scrollTop = el.scrollHeight; } });
@@ -2115,7 +2117,7 @@ def input_route(bid):
                     p.stdin.write(inp)
                     p.stdin.flush()
                 # Echo input to console so user sees what was sent
-                emit_log(bid, f'> {inp.rstrip()}', 'system')
+                emit_log(bid, f'> {inp.rstrip()}', 'stdin')
             except OSError as e:
                 emit_log(bid, f'[Error] stdin write failed: {e}', 'error')
             except Exception as e:
