@@ -153,12 +153,120 @@ def broadcast_status(bot_id, status, start_t=None):
             with contextlib.suppress(Exception):
                 socketio.emit('status_update', payload, room=u)
 
-def start_bot(bot_id, startup_file=None):
+def _run_install(bot_id, cmd, cwd=None, timeout=300):
+    """Run an install/build command in a thread, stream output via queue. Returns rc."""
+    import queue as _queue
+    q   = _queue.Queue()
+    rc  = [None]
+    env = os.environ.copy()
+    env['PYTHONUNBUFFERED']            = '1'
+    env['PIP_NO_COLOR']                = '1'
+    env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
+
+    def _worker():
+        try:
+            r_fd, w_fd = os.pipe()
+            p = subprocess.Popen(cmd, stdout=w_fd, stderr=w_fd,
+                                 stdin=subprocess.DEVNULL,
+                                 close_fds=True, cwd=cwd, env=env)
+            os.close(w_fd)
+            buf = b''
+            while True:
+                try:
+                    chunk = os.read(r_fd, 4096)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                buf += chunk
+                while b'\n' in buf:
+                    line, buf = buf.split(b'\n', 1)
+                    q.put(line.decode('utf-8', errors='replace').rstrip())
+            if buf:
+                q.put(buf.decode('utf-8', errors='replace').rstrip())
+            try: os.close(r_fd)
+            except: pass
+            p.wait()
+            rc[0] = p.returncode
+        except Exception as e:
+            q.put(f'[Error] {e}')
+            rc[0] = -1
+        finally:
+            q.put(None)
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    deadline = time.time() + timeout
+    while True:
+        try:
+            item = q.get(timeout=1.0)
+            if item is None:
+                break
+            if item.strip():
+                emit_log(bot_id, item, 'default')
+        except _queue.Empty:
+            if not t.is_alive():
+                break
+            if time.time() > deadline:
+                emit_log(bot_id, '[Error] Command timed out.', 'error')
+                break
+    t.join(timeout=5)
+    return rc[0] if rc[0] is not None else -1
+
+
+def _patch_py_for_asyncio(bot_dir, startup_file):
+    """
+    Inject asyncio event loop fix at the top of the user's Python file
+    if it uses discord.py / py-cord / nextcord and doesn't already have the fix.
+    Returns True if patched, False if not needed.
+    """
+    full = os.path.join(bot_dir, startup_file)
+    try:
+        with open(full, 'r', encoding='utf-8', errors='replace') as f:
+            src = f.read()
+    except Exception:
+        return False
+
+    needs_fix = (
+        ('discord' in src or 'nextcord' in src or 'disnake' in src)
+        and 'asyncio.set_event_loop' not in src
+        and 'asyncio.new_event_loop' not in src
+    )
+    if not needs_fix:
+        return False
+
+    patch = (
+        '# [Vortex] asyncio event loop compatibility patch\n'
+        'import asyncio as _vortex_asyncio\n'
+        '_vortex_asyncio.set_event_loop(_vortex_asyncio.new_event_loop())\n'
+        '# [/Vortex]\n'
+    )
+
+    # Insert after the last top-level import block
+    lines = src.splitlines(keepends=True)
+    insert_at = 0
+    for i, line in enumerate(lines):
+        stripped = line.lstrip()
+        if stripped.startswith('import ') or stripped.startswith('from '):
+            insert_at = i + 1
+        elif stripped and not stripped.startswith('#') and insert_at > 0:
+            break
+
+    lines.insert(insert_at, patch)
+    try:
+        with open(full, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        return True
+    except Exception:
+        return False
+
+
+def start_bot(bot_id, startup_file=None, _restart_count=0):
     cfg     = load_config()
     bot_cfg = cfg.get(bot_id, {})
     bot_dir = get_bot_dir(bot_id)
 
-    raw_sf = startup_file or bot_cfg.get('startup_file', 'main.py')
+    raw_sf       = startup_file or bot_cfg.get('startup_file', 'main.py')
     startup_file = safe_startup_file(raw_sf)
     if not startup_file:
         emit_log(bot_id, f'[Error] Invalid startup file: {raw_sf}', 'error')
@@ -175,148 +283,40 @@ def start_bot(bot_id, startup_file=None):
 
     ext = startup_file.rsplit('.', 1)[-1].lower()
 
-    # ── streaming helper ─────────────────────────────────────────────────────
-    def _stream(cmd, cwd=None, timeout=300):
-        """Run cmd using raw os.pipe() to bypass eventlet monkey-patching. Return exit code."""
-        run_env = os.environ.copy()
-        run_env['PYTHONUNBUFFERED'] = '1'
-        run_env['PIP_NO_COLOR'] = '1'
-        run_env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
-        try:
-            r_fd, w_fd = os.pipe()
-            proc = subprocess.Popen(
-                cmd,
-                stdout=w_fd,
-                stderr=w_fd,
-                stdin=subprocess.DEVNULL,
-                close_fds=True,
-                cwd=cwd,
-                env=run_env,
-            )
-            os.close(w_fd)
-        except FileNotFoundError as e:
-            emit_log(bot_id, f'[Error] Command not found: {e}', 'error')
-            return -1
-        except Exception as e:
-            emit_log(bot_id, f'[Error] Failed to launch: {e}', 'error')
-            return -1
-
-        deadline = time.time() + timeout
-        buf = b''
-        try:
-            while True:
-                try:
-                    chunk = os.read(r_fd, 4096)
-                except OSError:
-                    break
-                if not chunk:
-                    break
-                buf += chunk
-                while b'\n' in buf:
-                    line, buf = buf.split(b'\n', 1)
-                    emit_log(bot_id, line.decode('utf-8', errors='replace').rstrip(), 'default')
-                if time.time() > deadline:
-                    proc.kill()
-                    emit_log(bot_id, '[Error] Command timed out.', 'error')
-                    os.close(r_fd)
-                    return -1
-        except Exception as e:
-            emit_log(bot_id, f'[Error] Stream read error: {e}', 'error')
-        finally:
-            try: os.close(r_fd)
-            except: pass
-        if buf:
-            emit_log(bot_id, buf.decode('utf-8', errors='replace').rstrip(), 'default')
-        proc.wait()
-        return proc.returncode
-
     # ── dependency install / build ───────────────────────────────────────────
     if ext == 'py':
         req = os.path.join(bot_dir, 'requirements.txt')
         if os.path.exists(req):
             emit_log(bot_id, '[System] Installing Python requirements…', 'system')
-            # Run pip in a thread and stream output via a queue to avoid any pipe deadlock
-            import queue as _queue
-            pip_queue = _queue.Queue()
-            pip_rc    = [None]
-
-            def _pip_thread():
-                pip_env = os.environ.copy()
-                pip_env['PYTHONUNBUFFERED'] = '1'
-                pip_env['PIP_NO_COLOR']     = '1'
-                pip_env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
-                try:
-                    # Use os.pipe() to bypass eventlet's monkey-patched file I/O
-                    r_fd, w_fd = os.pipe()
-                    p = subprocess.Popen(
-                        [sys.executable, '-m', 'pip', 'install',
-                         '--no-input', '--no-color',
-                         '--disable-pip-version-check',
-                         '--progress-bar', 'off',
-                         '-r', req],
-                        stdout=w_fd,
-                        stderr=w_fd,
-                        stdin=subprocess.DEVNULL,
-                        close_fds=True,
-                        env=pip_env,
-                    )
-                    os.close(w_fd)  # close write end in parent
-                    buf = b''
-                    while True:
-                        chunk = os.read(r_fd, 4096)
-                        if not chunk:
-                            break
-                        buf += chunk
-                        while b'\n' in buf:
-                            line, buf = buf.split(b'\n', 1)
-                            pip_queue.put(line.decode('utf-8', errors='replace').rstrip())
-                    if buf:
-                        pip_queue.put(buf.decode('utf-8', errors='replace').rstrip())
-                    os.close(r_fd)
-                    p.wait()
-                    pip_rc[0] = p.returncode
-                except Exception as e:
-                    pip_queue.put(f'[Error] pip failed: {e}')
-                    pip_rc[0] = -1
-                finally:
-                    pip_queue.put(None)  # sentinel
-
-            t = threading.Thread(target=_pip_thread, daemon=True)
-            t.start()
-
-            # Drain the queue on the main thread — no blocking on pipes
-            deadline = time.time() + 300
-            while True:
-                try:
-                    item = pip_queue.get(timeout=1.0)
-                    if item is None:
-                        break
-                    emit_log(bot_id, item, 'default')
-                except _queue.Empty:
-                    if not t.is_alive():
-                        break
-                    if time.time() > deadline:
-                        emit_log(bot_id, '[Error] pip timed out after 5 minutes.', 'error')
-                        break
-
-            t.join(timeout=5)
-            if pip_rc[0] != 0:
-                emit_log(bot_id, '[Error] pip install failed — check output above.', 'error')
+            rc = _run_install(bot_id, [
+                sys.executable, '-m', 'pip', 'install',
+                '--no-input', '--no-color',
+                '--disable-pip-version-check',
+                '--progress-bar', 'off',
+                '-r', req,
+            ])
+            if rc != 0:
+                emit_log(bot_id, '[Error] pip install failed — see output above.', 'error')
                 return
             emit_log(bot_id, '[System] Requirements installed.', 'success')
+
+        # Auto-patch asyncio event loop for discord bots on Python 3.10+
+        if _patch_py_for_asyncio(bot_dir, startup_file):
+            emit_log(bot_id, '[System] Applied asyncio compatibility patch.', 'system')
 
     elif ext in ('js', 'ts'):
         pkg = os.path.join(bot_dir, 'package.json')
         if os.path.exists(pkg):
             emit_log(bot_id, '[System] Running npm install…', 'system')
-            rc = _stream(['npm', 'install', '--no-progress', '--no-audit', '--no-fund'],
-                         cwd=bot_dir)
+            rc = _run_install(bot_id,
+                ['npm', 'install', '--no-progress', '--no-audit', '--no-fund'],
+                cwd=bot_dir)
             if rc != 0:
                 emit_log(bot_id, '[Error] npm install failed — see output above.', 'error')
                 return
             emit_log(bot_id, '[System] npm packages installed.', 'success')
         if ext == 'ts' and not shutil.which('ts-node') and not shutil.which('npx'):
-            emit_log(bot_id, '[Error] ts-node / npx not found. Install Node.js and ts-node.', 'error')
+            emit_log(bot_id, '[Error] ts-node/npx not found. Install Node.js.', 'error')
             return
 
     elif ext == 'rs':
@@ -327,9 +327,10 @@ def start_bot(bot_id, startup_file=None):
             emit_log(bot_id, '[Error] cargo not found. Install Rust toolchain.', 'error')
             return
         emit_log(bot_id, '[System] Building Rust project…', 'system')
-        rc = _stream(['cargo', 'build', '--release'], cwd=bot_dir, timeout=600)
+        rc = _run_install(bot_id, ['cargo', 'build', '--release'],
+                          cwd=bot_dir, timeout=600)
         if rc != 0:
-            emit_log(bot_id, '[Error] cargo build failed — see output above.', 'error')
+            emit_log(bot_id, '[Error] cargo build failed.', 'error')
             return
         emit_log(bot_id, '[System] Rust build successful.', 'success')
 
@@ -341,9 +342,11 @@ def start_bot(bot_id, startup_file=None):
             emit_log(bot_id, '[Error] dotnet not found. Install the .NET SDK.', 'error')
             return
         emit_log(bot_id, '[System] Building C# project…', 'system')
-        rc = _stream(['dotnet', 'build', '--configuration', 'Release'], cwd=bot_dir, timeout=600)
+        rc = _run_install(bot_id,
+            ['dotnet', 'build', '--configuration', 'Release'],
+            cwd=bot_dir, timeout=600)
         if rc != 0:
-            emit_log(bot_id, '[Error] dotnet build failed — see output above.', 'error')
+            emit_log(bot_id, '[Error] dotnet build failed.', 'error')
             return
         emit_log(bot_id, '[System] C# build successful.', 'success')
 
@@ -353,10 +356,12 @@ def start_bot(bot_id, startup_file=None):
     elif ext == 'js':
         cmd = ['node', full_path]
     elif ext == 'ts':
-        cmd = ['ts-node', full_path] if shutil.which('ts-node') else ['npx', 'ts-node', full_path]
+        cmd = (['ts-node', full_path] if shutil.which('ts-node')
+               else ['npx', 'ts-node', full_path])
     elif ext == 'sh':
         cmd = ['bash', full_path]
     elif ext == 'rs':
+        bin_dir  = os.path.join(bot_dir, 'target', 'release')
         pkg_name = None
         try:
             with open(os.path.join(bot_dir, 'Cargo.toml')) as f:
@@ -366,50 +371,43 @@ def start_bot(bot_id, startup_file=None):
                 pkg_name = m.group(1)
         except Exception:
             pass
-        bin_dir = os.path.join(bot_dir, 'target', 'release')
-        binary  = None
+        binary = None
         if pkg_name:
-            for suffix in ('', '.exe'):
-                candidate = os.path.join(bin_dir, pkg_name + suffix)
-                if os.path.isfile(candidate):
-                    binary = candidate
-                    break
+            for sfx in ('', '.exe'):
+                c = os.path.join(bin_dir, pkg_name + sfx)
+                if os.path.isfile(c):
+                    binary = c; break
         if not binary and os.path.isdir(bin_dir):
             skip = ('.d', '.rlib', '.pdb', '.exp', '.lib', '.so', '.dylib', '.dll')
-            candidates = [
-                f for f in os.listdir(bin_dir)
-                if os.path.isfile(os.path.join(bin_dir, f))
-                and not f.endswith(skip) and not f.startswith('.')
-            ]
-            if candidates:
-                binary = os.path.join(bin_dir, candidates[0])
+            cands = [f for f in os.listdir(bin_dir)
+                     if os.path.isfile(os.path.join(bin_dir, f))
+                     and not f.endswith(skip) and not f.startswith('.')]
+            if cands:
+                binary = os.path.join(bin_dir, cands[0])
         if not binary:
             emit_log(bot_id, '[Error] Could not locate compiled Rust binary.', 'error')
             return
         cmd = [binary]
-        emit_log(bot_id, f'[System] Running binary: {binary}', 'system')
+        emit_log(bot_id, f'[System] Running: {binary}', 'system')
     elif ext == 'cs':
         cmd = ['dotnet', 'run', '--configuration', 'Release', '--project', bot_dir]
     else:
         emit_log(bot_id, f'[Error] Unsupported extension: .{ext}', 'error')
         return
 
-    # ── launch process ───────────────────────────────────────────────────────
-    use_text = (ext != 'rs')
-    run_env  = os.environ.copy()
+    # ── launch ──────────────────────────────────────────────────────────────
+    run_env = os.environ.copy()
     run_env.update(bot_cfg.get('env', {}))
     run_env['PYTHONUNBUFFERED'] = '1'
 
     emit_log(bot_id, f'[System] Starting {startup_file}…', 'system')
     try:
-        # Use os.pipe() for stdout to avoid eventlet monkey-patch issues
         out_r, out_w = os.pipe()
-        in_r,  in_w  = os.pipe()   # stdin pipe
+        in_r,  in_w  = os.pipe()
 
         proc = subprocess.Popen(
             cmd,
-            stdout=out_w,
-            stderr=out_w,
+            stdout=out_w, stderr=out_w,
             stdin=in_r,
             close_fds=True,
             cwd=bot_dir,
@@ -417,10 +415,6 @@ def start_bot(bot_id, startup_file=None):
         )
         os.close(out_w)
         os.close(in_r)
-
-        # Wrap raw fds in Python file objects for easy use
-        proc._vortex_stdout_fd = out_r
-        proc._vortex_stdin_fd  = in_w
 
         start_t = time.time()
         bots.setdefault(bot_id, {}).update({
@@ -448,32 +442,65 @@ def start_bot(bot_id, startup_file=None):
                     buf += chunk
                     while b'\n' in buf:
                         line, buf = buf.split(b'\n', 1)
-                        emit_log(bot_id, line.decode('utf-8', errors='replace').rstrip(), 'default')
+                        txt = line.decode('utf-8', errors='replace').rstrip()
+                        if txt:
+                            emit_log(bot_id, txt, 'default')
                 if buf:
-                    emit_log(bot_id, buf.decode('utf-8', errors='replace').rstrip(), 'default')
+                    txt = buf.decode('utf-8', errors='replace').rstrip()
+                    if txt:
+                        emit_log(bot_id, txt, 'default')
             except Exception:
                 pass
             finally:
                 try: os.close(r_fd)
                 except: pass
+                # close stdin fd too
+                try:
+                    fd = bots.get(bot_id, {}).get('stdin_fd')
+                    if fd is not None:
+                        os.close(fd)
+                        bots[bot_id]['stdin_fd'] = None
+                except: pass
+
             proc.wait()
+            rc = proc.returncode
+            uptime = time.time() - start_t
             broadcast_status(bot_id, 'offline')
-            emit_log(bot_id, f'[System] Exited with code {proc.returncode}.', 'system')
-            if bots.get(bot_id, {}).get('auto_restart') and proc.returncode != 0:
-                emit_log(bot_id, '[System] Auto-restart in 3s…', 'system')
-                time.sleep(3)
-                if bots.get(bot_id, {}).get('auto_restart') and not is_running(bot_id):
-                    start_bot(bot_id, startup_file)
+            emit_log(bot_id, f'[System] Exited with code {rc} (uptime {uptime:.1f}s).', 'system')
+
+            should_restart = (
+                bots.get(bot_id, {}).get('auto_restart')
+                and rc != 0
+                and not bots.get(bot_id, {}).get('_stopping')
+            )
+            if should_restart:
+                # Exponential backoff: 3s, 6s, 12s, 24s… capped at 60s
+                delay = min(3 * (2 ** _restart_count), 60)
+                emit_log(bot_id, f'[System] Auto-restart #{_restart_count+1} in {delay}s…', 'system')
+                time.sleep(delay)
+                if (bots.get(bot_id, {}).get('auto_restart')
+                        and not is_running(bot_id)
+                        and not bots.get(bot_id, {}).get('_stopping')):
+                    start_bot(bot_id, startup_file, _restart_count=_restart_count + 1)
 
         threading.Thread(target=_read, daemon=True).start()
 
     except Exception as e:
         emit_log(bot_id, f'[Error] Failed to start: {e}', 'error')
 
+
 def stop_bot(bot_id, disable_auto_restart=True):
     if bot_id in bots:
+        bots[bot_id]['_stopping'] = True
         if disable_auto_restart:
             bots[bot_id]['auto_restart'] = False
+        try:
+            fd = bots[bot_id].get('stdin_fd')
+            if fd is not None:
+                os.close(fd)
+                bots[bot_id]['stdin_fd'] = None
+        except Exception:
+            pass
         proc = bots[bot_id].get('process')
         if proc and proc.poll() is None:
             proc.terminate()
@@ -483,6 +510,7 @@ def stop_bot(bot_id, disable_auto_restart=True):
                 proc.kill()
             emit_log(bot_id, '[System] Stopped.', 'system')
             broadcast_status(bot_id, 'offline')
+        bots[bot_id]['_stopping'] = False
 
 
 # ─── HTML ─────────────────────────────────────────────────────────────────────
