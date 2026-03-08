@@ -1544,10 +1544,12 @@ function exportLogs() {
 }
 async function sendInput() {
   if (!curBot) return;
-  let v = document.getElementById('termIn').value; document.getElementById('termIn').value = '';
+  let v = document.getElementById('termIn').value;
+  document.getElementById('termIn').value = '';
   v = v.replace(/[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]/g, '');
-  if (!v.trim()) return;
-  await apiFetch(`/api/bot/${curBot}/input`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({input:v+'\n'}) });
+  if (!v && v !== '0') return;  // allow "0", "1", etc.
+  if (v.trim() === '' && v === '') return;
+  await apiFetch(`/api/bot/${curBot}/input`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({input: v}) });
 }
 
 /* ══════════════════════════════════════════════════════
@@ -2065,13 +2067,22 @@ def input_route(bid):
         p = bots[bid]['process']
         if p.poll() is None:
             try:
+                # Always ensure input ends with newline
+                if not inp.endswith('\n'):
+                    inp += '\n'
+                data = inp.encode('utf-8', errors='replace')
                 stdin_fd = bots[bid].get('stdin_fd')
                 if stdin_fd is not None:
-                    os.write(stdin_fd, inp.encode('utf-8', errors='replace'))
+                    os.write(stdin_fd, data)
                 elif p.stdin:
-                    p.stdin.write(inp); p.stdin.flush()
-            except Exception:
-                pass
+                    p.stdin.write(inp)
+                    p.stdin.flush()
+                # Echo input to console so user sees what was sent
+                emit_log(bid, f'> {inp.rstrip()}', 'system')
+            except OSError as e:
+                emit_log(bid, f'[Error] stdin write failed: {e}', 'error')
+            except Exception as e:
+                emit_log(bid, f'[Error] stdin error: {e}', 'error')
     return jsonify({'ok': True})
 
 @app.route('/api/bot/<bid>/logs')
