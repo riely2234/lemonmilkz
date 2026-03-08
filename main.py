@@ -1607,7 +1607,7 @@ async function loadFiles() {
     const fnIcon = document.createElement('span'); fnIcon.className = 'fn-icon'; fnIcon.textContent = ic;
     const fnLink = document.createElement('span');
     fnLink.className = 'fn-link'; fnLink.id = 'fnl_' + rid;
-    const displayName = f.name.split('/').pop();
+    const displayName = f.display || f.name.split('/').pop();
     fnLink.title = f.name; fnLink.textContent = displayName; fnLink.onclick = () => editFile(f.name);
     const fnRename = document.createElement('div'); fnRename.className = 'fn-rename'; fnRename.id = 'fnr_' + rid;
     const fnInput = document.createElement('input'); fnInput.className = 'fn-rename-input'; fnInput.id = 'fni_' + rid; fnInput.value = displayName;
@@ -2147,7 +2147,7 @@ def files_route(bid):
             rel = os.path.relpath(fp, bd).replace('\\', '/')
             sz  = os.path.getsize(fp)
             s   = f"{sz}B" if sz < 1024 else f"{sz // 1024}KB" if sz < 1024 ** 2 else f"{sz // 1024 // 1024}MB"
-            out.append({'name': rel, 'size': s,
+            out.append({'name': rel, 'display': f, 'size': s,
                 'modified': time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(fp)))})
     out.sort(key=lambda x: x['name'])
     return jsonify(out)
