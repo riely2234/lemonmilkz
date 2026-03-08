@@ -2156,7 +2156,9 @@ def files_route(bid):
             rel = os.path.relpath(fp, bd).replace('\\', '/')
             sz  = os.path.getsize(fp)
             s   = f"{sz}B" if sz < 1024 else f"{sz // 1024}KB" if sz < 1024 ** 2 else f"{sz // 1024 // 1024}MB"
-            out.append({'name': rel, 'display': f, 'size': s,
+            # display = full relative path (no leading bot-dir prefix)
+            # root files: "main.py", nested files: "cogs/admin.py", "src/utils/helper.py"
+            out.append({'name': rel, 'display': rel, 'size': s,
                 'modified': time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(fp)))})
     out.sort(key=lambda x: x['name'])
     return jsonify(out)
