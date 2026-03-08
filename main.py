@@ -1384,6 +1384,7 @@ setInterval(() => document.getElementById('clock').textContent = new Date().toTi
 
 sock.on('connect', () => console.log('[WS] Connected'));
 sock.on('console_log', ({ bot_id, msg, level }) => { if (bot_id === curBot) appendLog(msg, level); });
+sock.on('files_changed', ({ bot_id }) => { if (bot_id === curBot && document.getElementById('page-files')?.classList.contains('active')) loadFiles(); });
 sock.on('status_update', ({ bot_id, status, start_time }) => {
   if (botRegistry[bot_id]) botRegistry[bot_id].status = status;
   renderBotList();
@@ -2156,12 +2157,16 @@ def files_route(bid):
                 continue
             fp  = os.path.join(root, f)
             rel = os.path.relpath(fp, bd).replace('\\', '/')
-            sz  = os.path.getsize(fp)
-            s   = f"{sz}B" if sz < 1024 else f"{sz // 1024}KB" if sz < 1024 ** 2 else f"{sz // 1024 // 1024}MB"
-            # display = full relative path (no leading bot-dir prefix)
-            # root files: "main.py", nested files: "cogs/admin.py", "src/utils/helper.py"
-            out.append({'name': rel, 'display': rel, 'size': s,
-                'modified': time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(fp)))})
+            try:
+                sz = os.path.getsize(fp)
+                mtime = time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(fp)))
+            except OSError:
+                sz = 0
+                mtime = '—'
+            s = f"{sz}B" if sz < 1024 else f"{sz // 1024}KB" if sz < 1024 ** 2 else f"{sz // 1024 // 1024}MB"
+            # display = full relative path from bot root (no bot-dir prefix)
+            # root files: "main.py", nested: "cogs/admin.py"
+            out.append({'name': rel, 'display': rel, 'size': s, 'modified': mtime})
     out.sort(key=lambda x: x['name'])
     return jsonify(out)
 
@@ -2394,6 +2399,12 @@ def upload_route(bid):
             if blocked:
                 msg += f' ({blocked} path(s) blocked)'
             emit_log(bid, msg, 'success' if extracted else 'warn')
+            # Notify clients to refresh file list
+            cfg2 = load_config().get(bid, {})
+            _listeners = list({u for u in [cfg2.get('owner')] + cfg2.get('shared_with', []) if u})
+            for _u in _listeners:
+                with contextlib.suppress(Exception):
+                    socketio.emit('files_changed', {'bot_id': bid}, room=_u)
 
         except zipfile.BadZipFile:
             emit_log(bid, f'[Error] {fname} is not a valid ZIP', 'error')
@@ -2414,6 +2425,11 @@ def upload_route(bid):
                 os.makedirs(parent, exist_ok=True)
             file.save(dest)
             emit_log(bid, f'[System] Uploaded {rel_path}', 'system')
+            cfg3 = load_config().get(bid, {})
+            _ul = list({u for u in [cfg3.get('owner')] + cfg3.get('shared_with', []) if u})
+            for _u in _ul:
+                with contextlib.suppress(Exception):
+                    socketio.emit('files_changed', {'bot_id': bid}, room=_u)
         except Exception as e:
             log.exception('Upload save failed')
             return jsonify({'error': f'Save failed: {e}'}), 500
