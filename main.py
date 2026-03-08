@@ -224,15 +224,60 @@ def start_bot(bot_id, startup_file=None):
         req = os.path.join(bot_dir, 'requirements.txt')
         if os.path.exists(req):
             emit_log(bot_id, '[System] Installing Python requirements…', 'system')
-            rc = _stream([
-                sys.executable, '-m', 'pip', 'install',
-                '--no-input', '--no-color',
-                '--disable-pip-version-check',
-                '--progress-bar', 'off',
-                '-r', req,
-            ])
-            if rc != 0:
-                emit_log(bot_id, '[Error] pip install failed — see output above.', 'error')
+            # Run pip in a thread and stream output via a queue to avoid any pipe deadlock
+            import queue as _queue
+            pip_queue = _queue.Queue()
+            pip_rc    = [None]
+
+            def _pip_thread():
+                pip_env = os.environ.copy()
+                pip_env['PYTHONUNBUFFERED'] = '1'
+                pip_env['PIP_NO_COLOR']     = '1'
+                pip_env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
+                try:
+                    p = subprocess.Popen(
+                        [sys.executable, '-m', 'pip', 'install',
+                         '--no-input', '--no-color',
+                         '--disable-pip-version-check',
+                         '--progress-bar', 'off',
+                         '-r', req],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        stdin=subprocess.DEVNULL,
+                        text=True, bufsize=1,
+                        env=pip_env,
+                    )
+                    for line in p.stdout:
+                        pip_queue.put(line.rstrip())
+                    p.wait()
+                    pip_rc[0] = p.returncode
+                except Exception as e:
+                    pip_queue.put(f'[Error] pip thread: {e}')
+                    pip_rc[0] = -1
+                finally:
+                    pip_queue.put(None)  # sentinel
+
+            t = threading.Thread(target=_pip_thread, daemon=True)
+            t.start()
+
+            # Drain the queue on the main thread — no blocking on pipes
+            deadline = time.time() + 300
+            while True:
+                try:
+                    item = pip_queue.get(timeout=1.0)
+                    if item is None:
+                        break
+                    emit_log(bot_id, item, 'default')
+                except _queue.Empty:
+                    if not t.is_alive():
+                        break
+                    if time.time() > deadline:
+                        emit_log(bot_id, '[Error] pip timed out after 5 minutes.', 'error')
+                        break
+
+            t.join(timeout=5)
+            if pip_rc[0] != 0:
+                emit_log(bot_id, '[Error] pip install failed — check output above.', 'error')
                 return
             emit_log(bot_id, '[System] Requirements installed.', 'success')
 
