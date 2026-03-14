@@ -587,7 +587,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   background:linear-gradient(180deg,var(--deep) 0%,var(--void) 100%);
   border-right:1px solid var(--border-mid);
   box-shadow:4px 0 40px rgba(0,0,0,0.7);
-  transition:transform .38s var(--ease-out);position:relative;z-index:0}
+  transition:transform .38s var(--ease-out);position:relative;z-index:9500}
 .sidebar::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,transparent,var(--amber),var(--orange),transparent);
   box-shadow:0 0 16px var(--amber-glow)}
@@ -682,11 +682,12 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   background:rgba(22,18,10,0.97);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);
   border:1px solid var(--border-mid);border-radius:18px;
   z-index:9000;justify-content:space-around;align-items:center;padding:0 6px;
-  box-shadow:0 8px 40px rgba(0,0,0,0.85),0 0 0 1px rgba(255,154,0,0.05)}
+  box-shadow:0 8px 40px rgba(0,0,0,0.85),0 0 0 1px rgba(255,154,0,0.05);
+  -webkit-tap-highlight-color:transparent}
 
 .m-nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;
   color:var(--text-3);cursor:pointer;transition:all .22s var(--ease-spring);
-  padding:6px 10px;border-radius:12px;flex:1;-webkit-tap-highlight-color:transparent;min-width:0}
+  padding:6px 10px;border-radius:12px;flex:1;-webkit-tap-highlight-color:transparent;min-width:0;outline:none;user-select:none;-webkit-user-select:none}
 .m-nav-icon{font-size:17px;transition:transform .22s var(--ease-spring);line-height:1}
 .m-nav-label{font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:.5px;
   text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
