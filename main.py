@@ -1733,7 +1733,7 @@ try{
     if(status==='online'&&start_time){startTimes[bot_id]=start_time*1000;startUptime();}
     else delete startTimes[bot_id];
   });
-}catch(e){console.error('[WS] init failed',e);sock={emit:()=>{},on:():{}};}
+}catch(e){console.error('[WS] init failed',e);sock={emit:()=>{},on:()=>{}};}
 
 let curBot=null,botRegistry={},startTimes={},uptimeIv=null,resIv=null;
 let currentUser='',authMode='login';
