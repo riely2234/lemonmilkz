@@ -587,7 +587,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   background:linear-gradient(180deg,var(--deep) 0%,var(--void) 100%);
   border-right:1px solid var(--border-mid);
   box-shadow:4px 0 40px rgba(0,0,0,0.7);
-  transition:transform .38s var(--ease-out);position:relative;z-index:9500}
+  transition:transform .38s var(--ease-out);position:relative;z-index:0}
 .sidebar::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,transparent,var(--amber),var(--orange),transparent);
   box-shadow:0 0 16px var(--amber-glow)}
