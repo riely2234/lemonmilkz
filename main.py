@@ -616,7 +616,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   font-size:13px;font-weight:500;color:var(--text-2);cursor:pointer;
   transition:all .18s var(--ease-out);margin-bottom:2px;
   border:1px solid transparent;font-family:var(--font-sans);
-  position:relative;overflow:hidden}
+  position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;outline:none}
 .nav-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
   background:var(--amber);transform:scaleY(0);transition:transform .2s var(--ease-spring);border-radius:0 2px 2px 0}
 .nav-item:hover{background:rgba(255,154,0,0.06);color:var(--text);border-color:var(--border);transform:translateX(2px)}
@@ -636,15 +636,17 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   padding:10px;border:1px dashed rgba(255,154,0,0.22);border-radius:var(--radius);
   font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:2px;
   color:var(--text-3);background:transparent;cursor:pointer;
-  transition:all .22s var(--ease-out);text-transform:uppercase}
+  transition:all .22s var(--ease-out);text-transform:uppercase;
+  -webkit-tap-highlight-color:transparent;outline:none}
 .new-bot-btn:hover{border-color:var(--amber);color:var(--amber);background:var(--amber-dim);transform:translateY(-1px)}
 .new-bot-btn-plus{width:18px;height:18px;border-radius:3px;background:var(--elevated);
   display:flex;align-items:center;justify-content:center;font-size:14px}
 
-.bot-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 10px 10px}
+.bot-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 10px 10px;-webkit-tap-highlight-color:transparent}
 .bot-item{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:var(--radius);
   cursor:pointer;transition:all .18s;margin-bottom:4px;
-  border:1px solid var(--border);background:rgba(0,0,0,0.2)}
+  border:1px solid var(--border);background:rgba(0,0,0,0.2);
+  -webkit-tap-highlight-color:transparent;outline:none}
 .bot-item:hover{border-color:var(--border-mid);background:rgba(255,154,0,0.04)}
 .bot-item.active{background:rgba(255,154,0,0.08);border-color:rgba(255,154,0,0.28);
   box-shadow:0 0 16px rgba(255,154,0,0.06)}
