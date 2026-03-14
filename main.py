@@ -1747,8 +1747,8 @@ function toggleSidebar(){
   const sb=document.getElementById('sidebar'),o=document.getElementById('sidebarOverlay');
   if(!sb||!o)return;
   const open=sb.classList.toggle('open');
-  if(open){o.style.display='block';void o.offsetWidth;o.classList.add('open');document.body.style.overflow='hidden';}
-  else{o.classList.remove('open');setTimeout(()=>{o.style.display='none';},300);document.body.style.overflow='';}
+  if(open){o.style.display='block';void o.offsetWidth;o.classList.add('open');}
+  else{o.classList.remove('open');setTimeout(()=>{o.style.display='none';},300);}
 }
 
 /* ══ NAVIGATION ═══════════════════════════════════════════════════════════════ */
