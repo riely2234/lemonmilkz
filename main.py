@@ -1418,6 +1418,7 @@ function logout(){fetch('/api/logout',{method:'POST'}).catch(function(){}).then(
 
 /* == NAV ==================================================================== */
 var PAGE_TITLES={projects:'My Projects',manage:'Manage Instance',console:'Console',resources:'Resources',settings:'Account'};
+var _currentPage='projects';
 function navTo(name,el){
   try{
     document.querySelectorAll('.sidebar .nav-item').forEach(function(n){n.classList.remove('active')});
@@ -1425,22 +1426,30 @@ function navTo(name,el){
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
     var pg=document.getElementById('page-'+name);
     if(pg)pg.classList.add('active');
-    else{var fb=document.getElementById('page-projects');if(fb)fb.classList.add('active');}
+    else{var fb=document.getElementById('page-projects');if(fb)fb.classList.add('active');name='projects';}
     var tt=document.getElementById('topbarTitle');if(tt)tt.textContent=PAGE_TITLES[name]||name;
     if(name==='resources')startRes();else stopRes();
-    if(name==='console')loadBotLogs();
+    if(name==='console'&&_currentPage!=='console')loadBotLogs();
     if(name==='projects'){renderBotsGrid();updateStats();}
-    if(name==='manage'){loadFiles();startUptimeTimer();}else{stopUptimeTimer();}
-    if(window.innerWidth<=860&&document.getElementById('sidebar')&&document.getElementById('sidebar').classList.contains('open'))toggleSidebar();
+    if(name==='manage'){if(_currentPage!=='manage')loadFiles();startUptimeTimer();}else{stopUptimeTimer();}
+    _currentPage=name;
+    if(window.innerWidth<=860){var sb=document.getElementById('sidebar');if(sb&&sb.classList.contains('open'))toggleSidebar();}
   }catch(e){console.error('navTo error:',e);}
 }
+var _currentManageTab='files';
 function showManageTab(tab,btn){
-  ['files','env','cfg'].forEach(function(t){var el=document.getElementById('manageTab-'+t);if(el)el.style.display=t===tab?'':'none';});
-  document.querySelectorAll('#manageTabBar .filter-tab').forEach(function(b){b.classList.remove('active')});
-  if(btn)btn.classList.add('active');
-  if(tab==='files')loadFiles();
-  if(tab==='env')loadEnv();
-  if(tab==='cfg')loadSettings();
+  try{
+    ['files','env','cfg'].forEach(function(t){var el=document.getElementById('manageTab-'+t);if(el)el.style.display=t===tab?'':'none';});
+    document.querySelectorAll('#manageTabBar .filter-tab').forEach(function(b){b.classList.remove('active')});
+    if(btn)btn.classList.add('active');
+    else{var first=document.querySelector('#manageTabBar .filter-tab');if(first&&tab==='files')first.classList.add('active');}
+    if(tab!==_currentManageTab||!btn){
+      _currentManageTab=tab;
+      if(tab==='files')loadFiles();
+      if(tab==='env')loadEnv();
+      if(tab==='cfg')loadSettings();
+    }
+  }catch(e){console.error('showManageTab error:',e);}
 }
 
 /* == FILTER / SEARCH ======================================================== */
@@ -1867,7 +1876,7 @@ window.onerror=function(msg,src,line,col,err){console.error('JS Error:',msg,src,
 
 /* == BOOT ==================================================================== */
 try{
-  checkAuth().then(function(ok){if(ok){loadBots();fetchRes();setInterval(fetchRes,5000);}}).catch(function(e){console.error('Boot error:',e);document.getElementById('loginOverlay').style.display='flex';});
+  checkAuth().then(function(ok){if(ok){loadBots();}}).catch(function(e){console.error('Boot error:',e);document.getElementById('loginOverlay').style.display='flex';});
 }catch(e){console.error('Boot exception:',e);document.getElementById('loginOverlay').style.display='flex';}
 </script>
 </body>
