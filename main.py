@@ -576,7 +576,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .nav-item{display:flex;align-items:center;gap:10px;padding:8px 16px;margin:1px 8px;border-radius:var(--radius-sm);font-size:13.5px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .15s;border:1px solid transparent;-webkit-tap-highlight-color:transparent;outline:none;user-select:none}
 .nav-item:hover{background:var(--surface2);color:var(--text);border-color:var(--border)}
 .nav-item.active{background:rgba(0,212,170,0.08);color:var(--teal);border-color:rgba(0,212,170,0.2)}
-.nav-item.disabled{opacity:.4;cursor:default;pointer-events:none}
+
 .nav-icon{width:16px;text-align:center;font-size:14px;opacity:.7;flex-shrink:0}
 .nav-item.active .nav-icon{opacity:1}
 .instance-count-badge{font-size:10px;font-weight:600;background:var(--teal-dim);color:var(--teal);border:1px solid rgba(0,212,170,0.25);border-radius:20px;padding:1px 8px}
@@ -899,13 +899,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
         <span class="nav-icon">&#9635;</span> Resources
       </div>
       <div class="nav-section-label" style="margin-top:4px">Account</div>
-      <div class="nav-item disabled" data-page="referral">
+      <div class="nav-item" data-page="referral" onclick="navTo('referral',this)">
         <span class="nav-icon">&#9672;</span> Referral
       </div>
-      <div class="nav-item disabled" data-page="orders">
+      <div class="nav-item" data-page="orders" onclick="navTo('orders',this)">
         <span class="nav-icon">&#8801;</span> Orders
       </div>
-      <div class="nav-item disabled" data-page="support">
+      <div class="nav-item" data-page="support" onclick="navTo('support',this)">
         <span class="nav-icon">&#9678;</span> Support
       </div>
       <div class="nav-item" data-page="settings" onclick="navTo('settings',this)">
@@ -1210,14 +1210,220 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
       <!-- SETTINGS PAGE -->
       <div class="page" id="page-settings">
+        <div class="page-header">
+          <div class="page-title">Account Settings</div>
+          <div class="page-subtitle">Manage your account preferences</div>
+        </div>
         <div class="panel">
           <div class="panel-head">
-            <div class="panel-title"><div class="panel-title-icon">&#9881;</div> Account Settings</div>
+            <div class="panel-title"><div class="panel-title-icon">&#9881;</div> Profile</div>
           </div>
           <div class="panel-body">
-            <p style="color:var(--text2);font-size:13px">Logged in as <strong id="settingsUser" style="color:var(--teal)"></strong></p>
-            <p style="color:var(--text3);font-size:12px;margin-top:8px">Additional account settings coming soon.</p>
-            <button class="btn btn-red" style="margin-top:20px" onclick="logout()">Sign Out</button>
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+              <div style="width:56px;height:56px;background:linear-gradient(135deg,var(--teal),var(--blue));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff" id="settingsAvatar">U</div>
+              <div>
+                <div style="font-size:16px;font-weight:600;color:var(--text)" id="settingsUser"></div>
+                <div style="font-size:12px;color:var(--text3);margin-top:2px">Free Tier &middot; Vortex Hosting v12.1</div>
+              </div>
+            </div>
+            <div class="stats-row" style="margin-bottom:0">
+              <div class="stat-card">
+                <div class="stat-icon-wrap" style="background:var(--teal-dim)"><span style="font-size:18px">&#8862;</span></div>
+                <div class="stat-info"><div class="stat-number" style="color:var(--teal);font-size:22px" id="settingsBotCount">0</div><div class="stat-label">Instances</div></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon-wrap" style="background:var(--green-dim)"><span style="font-size:18px">&#10003;</span></div>
+                <div class="stat-info"><div class="stat-number" style="color:var(--green);font-size:22px">20</div><div class="stat-label">Max Instances</div></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon-wrap" style="background:var(--blue-dim)"><span style="font-size:18px">&#9650;</span></div>
+                <div class="stat-info"><div class="stat-number" style="color:var(--blue);font-size:22px">Free</div><div class="stat-label">Current Plan</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><div class="panel-title-icon" style="color:var(--red)">&#9888;</div> Session</div>
+          </div>
+          <div class="panel-body">
+            <p style="color:var(--text2);font-size:13px;margin-bottom:16px">End your current session and return to the login screen.</p>
+            <button class="btn btn-red" onclick="logout()">Sign Out</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- REFERRAL PAGE -->
+      <div class="page" id="page-referral">
+        <div class="page-header">
+          <div class="page-title">Referral Program</div>
+          <div class="page-subtitle">Invite friends and earn rewards</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><div class="panel-title-icon">&#9672;</div> Your Referral Link</div>
+          </div>
+          <div class="panel-body">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+              <input class="form-input" id="referralLink" readonly style="font-family:var(--mono);font-size:12px;flex:1" value="">
+              <button class="btn btn-teal" onclick="copyReferral()">Copy</button>
+            </div>
+            <p class="help-text info">Share this link with friends. When they sign up, you both get extended instance time.</p>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-icon-wrap" style="background:var(--teal-dim)"><span style="font-size:20px">&#9672;</span></div>
+            <div class="stat-info"><div class="stat-number" style="color:var(--teal)">0</div><div class="stat-label">Total Referrals</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon-wrap" style="background:var(--green-dim)"><span style="font-size:20px">&#10003;</span></div>
+            <div class="stat-info"><div class="stat-number" style="color:var(--green)">0</div><div class="stat-label">Active Referrals</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon-wrap" style="background:var(--purple-dim)"><span style="font-size:20px">&#9733;</span></div>
+            <div class="stat-info"><div class="stat-number" style="color:var(--purple)">0 days</div><div class="stat-label">Bonus Time Earned</div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><div class="panel-title-icon">&#8801;</div> Referral History</div>
+          </div>
+          <div class="panel-body">
+            <div class="empty-state" style="padding:32px">
+              <div class="empty-icon">&#9672;</div>
+              <div class="empty-title">No referrals yet</div>
+              <div class="empty-sub">Share your link above to start earning rewards</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ORDERS PAGE -->
+      <div class="page" id="page-orders">
+        <div class="page-header">
+          <div class="page-title">Orders</div>
+          <div class="page-subtitle">View your order and billing history</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><div class="panel-title-icon">&#8801;</div> Order History</div>
+          </div>
+          <div class="panel-body">
+            <div class="file-table-wrap">
+              <table class="file-table">
+                <thead><tr><th>Order ID</th><th>Date</th><th>Item</th><th>Amount</th><th>Status</th></tr></thead>
+                <tbody id="orderList">
+                  <tr><td colspan="5" style="padding:32px;text-align:center">
+                    <div class="empty-state" style="padding:0">
+                      <div class="empty-icon">&#8801;</div>
+                      <div class="empty-title">No orders yet</div>
+                      <div class="empty-sub">Your purchase history will appear here</div>
+                    </div>
+                  </td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><div class="panel-title-icon">&#9650;</div> Available Plans</div>
+          </div>
+          <div class="panel-body">
+            <div class="stats-row" style="margin-bottom:0">
+              <div class="stat-card" style="flex-direction:column;align-items:stretch;gap:12px;border-color:rgba(0,212,170,0.2)">
+                <div style="font-size:14px;font-weight:700;color:var(--teal)">Free</div>
+                <div style="font-size:28px;font-weight:700;color:var(--text)">$0<span style="font-size:12px;color:var(--text3);font-weight:400">/mo</span></div>
+                <div style="font-size:12px;color:var(--text3);line-height:1.8">20 instances<br>512MB RAM each<br>Community support</div>
+                <div class="btn btn-teal btn-sm" style="justify-content:center;pointer-events:none;opacity:.6">Current Plan</div>
+              </div>
+              <div class="stat-card" style="flex-direction:column;align-items:stretch;gap:12px;border-color:rgba(168,85,247,0.2)">
+                <div style="font-size:14px;font-weight:700;color:var(--purple)">Pro</div>
+                <div style="font-size:28px;font-weight:700;color:var(--text)">$5<span style="font-size:12px;color:var(--text3);font-weight:400">/mo</span></div>
+                <div style="font-size:12px;color:var(--text3);line-height:1.8">50 instances<br>1GB RAM each<br>Priority support</div>
+                <div class="btn btn-ghost btn-sm" style="justify-content:center;color:var(--purple);border-color:rgba(168,85,247,0.3)">Coming Soon</div>
+              </div>
+              <div class="stat-card" style="flex-direction:column;align-items:stretch;gap:12px;border-color:rgba(249,115,22,0.2)">
+                <div style="font-size:14px;font-weight:700;color:var(--orange)">Enterprise</div>
+                <div style="font-size:28px;font-weight:700;color:var(--text)">$15<span style="font-size:12px;color:var(--text3);font-weight:400">/mo</span></div>
+                <div style="font-size:12px;color:var(--text3);line-height:1.8">Unlimited instances<br>4GB RAM each<br>Dedicated support</div>
+                <div class="btn btn-ghost btn-sm" style="justify-content:center;color:var(--orange);border-color:rgba(249,115,22,0.3)">Coming Soon</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUPPORT PAGE -->
+      <div class="page" id="page-support">
+        <div class="page-header">
+          <div class="page-title">Support</div>
+          <div class="page-subtitle">Get help with your Vortex Hosting account</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><div class="panel-title-icon">&#9678;</div> Create Support Ticket</div>
+          </div>
+          <div class="panel-body">
+            <div class="form-group">
+              <label class="form-label">Subject</label>
+              <input class="form-input" id="ticketSubject" placeholder="Brief description of your issue">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Category</label>
+              <select class="form-select" id="ticketCategory">
+                <option value="general">General Question</option>
+                <option value="technical">Technical Issue</option>
+                <option value="billing">Billing</option>
+                <option value="feature">Feature Request</option>
+                <option value="bug">Bug Report</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-textarea" id="ticketBody" placeholder="Describe your issue in detail..."></textarea>
+            </div>
+            <button class="btn btn-teal" onclick="submitTicket()">Submit Ticket</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><div class="panel-title-icon">&#8801;</div> Your Tickets</div>
+          </div>
+          <div class="panel-body">
+            <div id="ticketList">
+              <div class="empty-state" style="padding:24px">
+                <div class="empty-icon">&#9678;</div>
+                <div class="empty-title">No tickets</div>
+                <div class="empty-sub">Submit a ticket above if you need help</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><div class="panel-title-icon">&#9881;</div> Quick Links</div>
+          </div>
+          <div class="panel-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div style="padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">Getting Started</div>
+                <div style="font-size:11px;color:var(--text3)">Learn how to deploy your first bot</div>
+              </div>
+              <div style="padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">Runtime Support</div>
+                <div style="font-size:11px;color:var(--text3)">Python, Node.js, TypeScript, Rust, C#, Bash</div>
+              </div>
+              <div style="padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">Environment Variables</div>
+                <div style="font-size:11px;color:var(--text3)">Securely store tokens and API keys</div>
+              </div>
+              <div style="padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">File Manager</div>
+                <div style="font-size:11px;color:var(--text3)">Upload, edit, and manage your code files</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1417,7 +1623,7 @@ function submitAuth(){
 function logout(){fetch('/api/logout',{method:'POST'}).catch(function(){}).then(function(){location.reload();});}
 
 /* == NAV ==================================================================== */
-var PAGE_TITLES={projects:'My Projects',manage:'Manage Instance',console:'Console',resources:'Resources',settings:'Account'};
+var PAGE_TITLES={projects:'My Projects',manage:'Manage Instance',console:'Console',resources:'Resources',settings:'Account',referral:'Referral',orders:'Orders',support:'Support'};
 var _currentPage='projects';
 function navTo(name,el){
   try{
@@ -1432,6 +1638,8 @@ function navTo(name,el){
     if(name==='console'&&_currentPage!=='console')loadBotLogs();
     if(name==='projects'){renderBotsGrid();updateStats();}
     if(name==='manage'){if(_currentPage!=='manage')loadFiles();startUptimeTimer();}else{stopUptimeTimer();}
+    if(name==='referral')initReferral();
+    if(name==='settings'){var sc=document.getElementById('settingsBotCount');if(sc)sc.textContent=Object.keys(botRegistry||{}).length;var sa=document.getElementById('settingsAvatar');if(sa)sa.textContent=(currentUser[0]||'U').toUpperCase();}
     _currentPage=name;
     if(window.innerWidth<=860){var sb=document.getElementById('sidebar');if(sb&&sb.classList.contains('open'))toggleSidebar();}
   }catch(e){console.error('navTo error:',e);}
@@ -1868,6 +2076,39 @@ function toast(msg,type){
   t.innerHTML='<div class="toast-icon">'+icons[type]+'</div><span>'+escH(msg)+'</span><span class="toast-close" onclick="this.parentElement.remove()">\u2715</span>';
   tray.appendChild(t);
   setTimeout(function(){t.style.transition='all .3s';t.style.opacity='0';t.style.transform='translateX(10px)';setTimeout(function(){t.remove()},300);},3500);
+}
+
+/* == REFERRAL ================================================================ */
+function initReferral(){
+  var el=document.getElementById('referralLink');
+  if(el)el.value=window.location.origin+'/?ref='+encodeURIComponent(currentUser||'user');
+}
+function copyReferral(){
+  var el=document.getElementById('referralLink');if(!el)return;
+  el.select();
+  try{document.execCommand('copy');toast('Referral link copied!','success');}
+  catch(e){toast('Copy failed - select and copy manually','error');}
+}
+
+/* == SUPPORT ================================================================= */
+function submitTicket(){
+  var subj=document.getElementById('ticketSubject');
+  var cat=document.getElementById('ticketCategory');
+  var body=document.getElementById('ticketBody');
+  if(!subj||!cat||!body)return;
+  if(!subj.value.trim()){toast('Subject is required','error');return;}
+  if(!body.value.trim()){toast('Description is required','error');return;}
+  var list=document.getElementById('ticketList');
+  if(list){
+    var now=new Date();
+    var ts=now.toLocaleDateString()+' '+now.toLocaleTimeString().slice(0,5);
+    var ticket=document.createElement('div');
+    ticket.className='subuser-row';ticket.style.marginBottom='6px';
+    ticket.innerHTML='<div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">'+escH(subj.value)+'</div><div style="font-size:11px;color:var(--text3);margin-top:2px">'+escH(cat.value)+' &middot; '+ts+'</div></div><span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--orange-dim);color:var(--orange);border:1px solid rgba(249,115,22,0.2)">Open</span>';
+    list.innerHTML='';list.appendChild(ticket);
+  }
+  toast('Ticket submitted!','success');
+  subj.value='';body.value='';
 }
 
 /* == GLOBAL ERROR HANDLER =================================================== */
