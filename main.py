@@ -1330,15 +1330,16 @@ function toggleRememberMe(){rememberMe=!rememberMe;var el=document.getElementByI
 var sock;
 try{
   sock=io({transports:['websocket','polling'],reconnectionAttempts:10,reconnectionDelay:1500,timeout:10000});
-  sock.on('console_log',function(d){if(d.bot_id===curBot)appendLog(d.msg,d.level);});
-  sock.on('status_update',function(d){
+  sock.on('console_log',function(d){try{if(d&&d.bot_id===curBot)appendLog(d.msg,d.level);}catch(e){}});
+  sock.on('status_update',function(d){try{
+    if(!d)return;
     if(botRegistry[d.bot_id])botRegistry[d.bot_id].status=d.status;
     renderBotsGrid();renderBotList();
     if(d.bot_id===curBot)applyStatus(d.status);
     if(d.status==='online'&&d.start_time)startTimes[d.bot_id]=d.start_time*1000;else delete startTimes[d.bot_id];
     updateUptime();
-  });
-  sock.on('files_changed',function(d){if(d.bot_id===curBot&&document.getElementById('page-manage')&&document.getElementById('page-manage').classList.contains('active'))loadFiles();});
+  }catch(e){console.error('status_update error:',e);}});
+  sock.on('files_changed',function(d){try{if(d&&d.bot_id===curBot&&document.getElementById('page-manage')&&document.getElementById('page-manage').classList.contains('active'))loadFiles();}catch(e){}});
 }catch(e){sock={emit:function(){},on:function(){}};}
 
 var curBot=null,botRegistry={},startTimes={},uptimeIv=null,resIv=null;
@@ -1418,16 +1419,20 @@ function logout(){fetch('/api/logout',{method:'POST'}).catch(function(){}).then(
 /* == NAV ==================================================================== */
 var PAGE_TITLES={projects:'My Projects',manage:'Manage Instance',console:'Console',resources:'Resources',settings:'Account'};
 function navTo(name,el){
-  document.querySelectorAll('.sidebar .nav-item').forEach(function(n){n.classList.remove('active')});
-  var d=document.querySelector('.sidebar .nav-item[data-page="'+name+'"]');if(d)d.classList.add('active');
-  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
-  var pg=document.getElementById('page-'+name);if(pg)pg.classList.add('active');
-  document.getElementById('topbarTitle').textContent=PAGE_TITLES[name]||name;
-  if(name==='resources')startRes();else stopRes();
-  if(name==='console')loadBotLogs();
-  if(name==='projects'){renderBotsGrid();updateStats();}
-  if(name==='manage'){loadFiles();startUptimeTimer();}else{stopUptimeTimer();}
-  if(window.innerWidth<=860&&document.getElementById('sidebar')&&document.getElementById('sidebar').classList.contains('open'))toggleSidebar();
+  try{
+    document.querySelectorAll('.sidebar .nav-item').forEach(function(n){n.classList.remove('active')});
+    var d=document.querySelector('.sidebar .nav-item[data-page="'+name+'"]');if(d)d.classList.add('active');
+    document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+    var pg=document.getElementById('page-'+name);
+    if(pg)pg.classList.add('active');
+    else{var fb=document.getElementById('page-projects');if(fb)fb.classList.add('active');}
+    var tt=document.getElementById('topbarTitle');if(tt)tt.textContent=PAGE_TITLES[name]||name;
+    if(name==='resources')startRes();else stopRes();
+    if(name==='console')loadBotLogs();
+    if(name==='projects'){renderBotsGrid();updateStats();}
+    if(name==='manage'){loadFiles();startUptimeTimer();}else{stopUptimeTimer();}
+    if(window.innerWidth<=860&&document.getElementById('sidebar')&&document.getElementById('sidebar').classList.contains('open'))toggleSidebar();
+  }catch(e){console.error('navTo error:',e);}
 }
 function showManageTab(tab,btn){
   ['files','env','cfg'].forEach(function(t){var el=document.getElementById('manageTab-'+t);if(el)el.style.display=t===tab?'':'none';});
@@ -1467,15 +1472,17 @@ function loadBots(){
 }
 
 function updateStats(){
-  var all=Object.values(botRegistry);
-  document.getElementById('statTotal').textContent=all.length;
-  document.getElementById('statActive').textContent=all.filter(function(b){return b.status==='online'}).length;
-  document.getElementById('statVps').textContent=all.filter(function(b){return (b.type||'bot')==='vps'}).length;
+  try{
+    var all=Object.values(botRegistry||{});
+    var el1=document.getElementById('statTotal');if(el1)el1.textContent=all.length;
+    var el2=document.getElementById('statActive');if(el2)el2.textContent=all.filter(function(b){return b&&b.status==='online'}).length;
+    var el3=document.getElementById('statVps');if(el3)el3.textContent=all.filter(function(b){return b&&(b.type||'bot')==='vps'}).length;
+  }catch(e){console.error('updateStats error:',e);}
 }
 
-function renderBotsGrid(){
+function renderBotsGrid(){try{
   var g=document.getElementById('botsGrid');if(!g)return;
-  var entries=Object.entries(botRegistry);
+  var entries=Object.entries(botRegistry||{});
   if(_searchQuery)entries=entries.filter(function(e){return(e[1].name||'').toLowerCase().indexOf(_searchQuery)!==-1});
   if(_currentFilter!=='all'){
     entries=entries.filter(function(e){
@@ -1537,40 +1544,46 @@ function renderBotsGrid(){
       '</div>';
     g.appendChild(card);
   });
+}catch(e){console.error('renderBotsGrid error:',e);}
 }
 
 function manageBotClick(id){selectBot(id,true);navTo('manage',null);}
 
-function renderBotList(){
+function renderBotList(){try{
   var el=document.getElementById('botList');if(!el)return;
   el.innerHTML='';
-  var entries=Object.entries(botRegistry);
+  var entries=Object.entries(botRegistry||{});
   if(!entries.length){
     el.innerHTML='<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No instances yet</div>';
     return;
   }
   entries.forEach(function(pair){
-    var id=pair[0],b=pair[1];
+    var id=pair[0],b=pair[1]||{};
     var d=document.createElement('div');d.className='bot-list-item'+(id===curBot?' active':'');
     var on=b.status==='online';
     var t=b.type||'bot';
     d.innerHTML='<div class="bot-list-dot '+(on?'online':'offline')+'"></div><div class="bot-list-name">'+escH(b.name||id)+'</div><span class="bot-list-type '+t+'">'+t+'</span>';
     d.onclick=function(){manageBotClick(id);};el.appendChild(d);
   });
+}catch(e){console.error('renderBotList error:',e);}
 }
 
 function selectBot(id,navigating){
-  curBot=id;var b=botRegistry[id];
-  document.getElementById('topbarBotName').textContent=b?b.name||id:'';
-  document.getElementById('sfInput').value=b?b.startup_file||'main.py':'main.py';
-  document.getElementById('manageBotTitle').textContent=b?b.name||id:'';
-  document.getElementById('manageBotId').textContent=id;
-  document.getElementById('termTitle').textContent=(b?b.name||id:'').toUpperCase()+' // STDOUT';
-  applyStatus(b?b.status||'offline':'offline');
-  renderBotList();renderBotsGrid();updateStats();
-  detectRuntime(b?b.startup_file||'main.py':'main.py');
-  if(navigating)loadBotLogs();
-  updateUptime();
+  try{
+    curBot=id;var b=botRegistry[id]||{};
+    var _s=function(eid,v){var el=document.getElementById(eid);if(el)el.textContent=v;};
+    var _v=function(eid,v){var el=document.getElementById(eid);if(el)el.value=v;};
+    _s('topbarBotName',b.name||id||'');
+    _v('sfInput',b.startup_file||'main.py');
+    _s('manageBotTitle',b.name||id||'');
+    _s('manageBotId',id||'');
+    _s('termTitle',(b.name||id||'').toUpperCase()+' // STDOUT');
+    applyStatus(b.status||'offline');
+    renderBotList();renderBotsGrid();updateStats();
+    detectRuntime(b.startup_file||'main.py');
+    if(navigating)loadBotLogs();
+    updateUptime();
+  }catch(e){console.error('selectBot error:',e);}
 }
 
 function loadBotLogs(){
@@ -1585,12 +1598,14 @@ function loadBotLogs(){
 }
 
 function applyStatus(s){
-  var on=s==='online';
-  var pill=document.getElementById('statusPill');
-  if(pill)pill.className='status-pill '+(on?'online':'offline');
-  document.getElementById('statusText').textContent=on?'Online':'Offline';
-  updateStats();
-  if(on)startUptimeTimer();else stopUptimeTimer();
+  try{
+    var on=s==='online';
+    var pill=document.getElementById('statusPill');
+    if(pill)pill.className='status-pill '+(on?'online':'offline');
+    var st=document.getElementById('statusText');if(st)st.textContent=on?'Online':'Offline';
+    updateStats();
+    if(on)startUptimeTimer();else stopUptimeTimer();
+  }catch(e){console.error('applyStatus error:',e);}
 }
 
 /* == BOT ACTIONS ============================================================ */
