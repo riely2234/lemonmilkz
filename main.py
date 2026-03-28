@@ -8,7 +8,7 @@ try:
     import eventlet
     eventlet.monkey_patch()
     _ASYNC_MODE = 'eventlet'
-except ImportError:
+except (ImportError, Exception):
     _ASYNC_MODE = 'threading'
 
 import contextlib, hashlib, json, logging, os, re, shutil, subprocess, sys
@@ -1453,17 +1453,17 @@ function loadBots(){
   return fetch('/api/bots').then(function(r){
     if(!r||r.status===401){document.getElementById('loginOverlay').style.display='flex';return;}
     return r.json().then(function(data){
-      botRegistry=data;
+      botRegistry=data||{};
       Object.keys(botRegistry).forEach(function(id){
         var b=botRegistry[id];
-        if(b.status==='online'&&b.start_time)startTimes[id]=b.start_time*1000;
+        if(b&&b.status==='online'&&b.start_time)startTimes[id]=b.start_time*1000;
       });
       document.getElementById('botCount').textContent=Object.keys(botRegistry).length;
       renderBotsGrid();renderBotList();updateStats();
       if(Object.keys(botRegistry).length>0&&!curBot)selectBot(Object.keys(botRegistry)[0],false);
-      if(sock&&sock.connected)sock.emit('join',{});else if(sock)sock.on('connect',function(){sock.emit('join',{});});
+      try{if(sock&&sock.connected)sock.emit('join',{});else if(sock)sock.on('connect',function(){sock.emit('join',{});});}catch(e){}
     });
-  });
+  }).catch(function(e){console.error('loadBots error:',e);});
 }
 
 function updateStats(){
@@ -1579,9 +1579,9 @@ function loadBotLogs(){
     if(!r||r.status===401)return;
     return r.json().then(function(logs){
       ['mainTerm','miniTerm'].forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML='';});
-      logs.forEach(function(entry){appendLog(entry.msg,entry.level,entry.time);});
+      if(logs&&logs.forEach)logs.forEach(function(entry){appendLog(entry.msg,entry.level,entry.time);});
     });
-  });
+  }).catch(function(){});
 }
 
 function applyStatus(s){
@@ -1606,27 +1606,30 @@ function createBot(){
     document.getElementById('botCount').textContent=Object.keys(botRegistry).length;
     renderBotsGrid();renderBotList();updateStats();
     selectBot(res.id,false);toast('"'+n+'" deployed','success');
-  });});
+  });}).catch(function(e){toast('Network error: '+e.message,'error');});
 }
 function startBot(){
   if(!curBot){toast('Select an instance first','error');return;}
   var sf=document.getElementById('sfInput').value.trim()||(RUNTIMES[currentRuntime]?RUNTIMES[currentRuntime].defaultFile:'main.py');
   fetch('/api/bot/'+curBot+'/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({startup_file:sf})})
-  .then(function(r){if(r&&!r.ok)return r.json().then(function(e){toast(e.error||'Start failed','error');});toast('Booting...','info');});
+  .then(function(r){
+    if(r&&!r.ok){return r.json().then(function(e){toast(e.error||'Start failed','error');}).catch(function(){toast('Start failed','error');});}
+    else{toast('Booting...','info');}
+  }).catch(function(e){toast('Network error: '+e.message,'error');});
 }
 function stopBot(){
   if(!curBot){toast('Select an instance first','error');return;}
-  fetch('/api/bot/'+curBot+'/stop',{method:'POST'}).then(function(){toast('Stopped','success');});
+  fetch('/api/bot/'+curBot+'/stop',{method:'POST'}).then(function(){toast('Stopped','success');}).catch(function(e){toast('Network error: '+e.message,'error');});
 }
 function restartBot(){
   if(!curBot){toast('Select an instance first','error');return;}
   fetch('/api/bot/'+curBot+'/stop',{method:'POST'}).then(function(){
     toast('Restarting...','info');setTimeout(startBot,1200);
-  });
+  }).catch(function(e){toast('Network error: '+e.message,'error');});
 }
 function killBot(){
   if(!curBot)return;if(!confirm('Force kill?'))return;
-  fetch('/api/bot/'+curBot+'/kill',{method:'POST'}).then(function(){toast('Force killed','error');});
+  fetch('/api/bot/'+curBot+'/kill',{method:'POST'}).then(function(){toast('Force killed','error');}).catch(function(){});
 }
 function deleteBot(){
   if(!curBot||!confirm('Permanently destroy this instance and ALL its files?'))return;
@@ -1637,7 +1640,7 @@ function deleteBot(){
     applyStatus('offline');renderBotsGrid();renderBotList();
     document.getElementById('botCount').textContent=Object.keys(botRegistry).length;
     navTo('projects',null);toast('Instance destroyed','error');
-  });
+  }).catch(function(e){toast('Network error: '+e.message,'error');});
 }
 
 /* == CONSOLE ================================================================ */
@@ -1656,7 +1659,7 @@ function exportLogs(){
 function sendInput(){
   if(!curBot)return;var inp=document.getElementById('termIn');if(!inp)return;
   var v=inp.value;if(!v.trim())return;inp.value='';v=v.replace(/[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]/g,'');
-  fetch('/api/bot/'+curBot+'/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input:v})});
+  fetch('/api/bot/'+curBot+'/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input:v})}).catch(function(){});
 }
 
 /* == FILE MANAGER =========================================================== */
@@ -1667,8 +1670,11 @@ function loadFiles(){
   var tb=document.getElementById('fileList');
   if(!curBot){if(tb)tb.innerHTML='<tr><td colspan="5" style="padding:28px;text-align:center;color:var(--text3);font-size:12px">Select an instance first</td></tr>';return;}
   if(tb)tb.innerHTML='<tr><td colspan="5" style="padding:28px;text-align:center;color:var(--text3);font-size:12px">Loading...</td></tr>';
-  fetch('/api/bot/'+curBot+'/files').then(function(r){if(!r)return;return r.json().then(function(files){
-    if(!files.length){if(tb)tb.innerHTML='<tr><td colspan="5" style="padding:28px;text-align:center;color:var(--text3);font-size:12px">No files yet \u2014 upload some</td></tr>';return;}
+  fetch('/api/bot/'+curBot+'/files').then(function(r){
+    if(!r||!r.ok)throw new Error('HTTP '+r.status);
+    return r.json();
+  }).then(function(files){
+    if(!files||!files.length){if(tb)tb.innerHTML='<tr><td colspan="5" style="padding:28px;text-align:center;color:var(--text3);font-size:12px">No files yet \u2014 upload some</td></tr>';return;}
     var k;for(k in _renameMap)delete _renameMap[k];
     if(tb)tb.innerHTML='';
     files.forEach(function(f){
@@ -1695,16 +1701,16 @@ function loadFiles(){
       var bx=document.createElement('button');bx.className='icon-btn red';bx.title='Delete';bx.textContent='\u2715';bx.onclick=(function(n){return function(){delFile(n)}})(f.name);
       act.append(be,br,bd,bx);tdA.appendChild(act);tr.append(tdN,tdT,tdS,tdM,tdA);if(tb)tb.appendChild(tr);
     });
-  });});
+  }).catch(function(){if(tb)tb.innerHTML='<tr><td colspan="5" style="padding:28px;text-align:center;color:var(--text3);font-size:12px">Failed to load files</td></tr>';});
 }
 function toggleRename(rid){var l=document.getElementById('fnl_'+rid),rn=document.getElementById('fnr_'+rid),b=document.getElementById('rnb_'+rid);if(!l||!rn||!b)return;if(rn.classList.contains('on')){cancelRename(rid);}else{l.style.display='none';rn.classList.add('on');b.textContent='\u2715';var inp=document.getElementById('fni_'+rid);if(inp){inp.focus();var v=inp.value,dot=v.lastIndexOf('.');inp.setSelectionRange(0,dot>0?dot:v.length);}}}
 function cancelRename(rid){var l=document.getElementById('fnl_'+rid),rn=document.getElementById('fnr_'+rid),b=document.getElementById('rnb_'+rid);if(l)l.style.display='';if(rn)rn.classList.remove('on');if(b)b.textContent='\u27F3';}
-function doRename(rid){var old=_renameMap[rid];if(!old)return;var inp=document.getElementById('fni_'+rid);if(!inp)return;var nb=inp.value.trim();if(!nb)return;var parts=old.split('/');parts[parts.length-1]=nb;var nn=parts.join('/');if(nn===old){cancelRename(rid);return;}fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(old)+'/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_name:nn})}).then(function(r){if(!r)return;return r.json().then(function(res){if(res.error){toast(res.error,'error');return;}toast('Renamed \u2192 '+nb,'success');loadFiles();});});}
-function editFile(name){if(!curBot)return;fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(name)).then(function(r){if(!r)return;return r.json().then(function(d){document.getElementById('edName').textContent=name;document.getElementById('edContent').value=d.content==='[Binary \u2014 cannot display]'?'':d.content;document.getElementById('edContent').dataset.fn=name;document.getElementById('mEditor').classList.add('open');});});}
-function saveFile(){var name=document.getElementById('edContent').dataset.fn;if(!name)return;fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(name),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:document.getElementById('edContent').value})}).then(function(r){if(!r||!r.ok){toast('Save failed','error');return;}closeModal('mEditor');loadFiles();toast(name+' saved','success');});}
+function doRename(rid){var old=_renameMap[rid];if(!old)return;var inp=document.getElementById('fni_'+rid);if(!inp)return;var nb=inp.value.trim();if(!nb)return;var parts=old.split('/');parts[parts.length-1]=nb;var nn=parts.join('/');if(nn===old){cancelRename(rid);return;}fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(old)+'/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_name:nn})}).then(function(r){if(!r)return;return r.json().then(function(res){if(res.error){toast(res.error,'error');return;}toast('Renamed \u2192 '+nb,'success');loadFiles();});}).catch(function(e){toast('Rename failed','error');});}
+function editFile(name){if(!curBot)return;fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(name)).then(function(r){if(!r)return;return r.json().then(function(d){document.getElementById('edName').textContent=name;document.getElementById('edContent').value=d.content==='[Binary \u2014 cannot display]'?'':d.content;document.getElementById('edContent').dataset.fn=name;document.getElementById('mEditor').classList.add('open');});}).catch(function(e){toast('Failed to load file','error');});}
+function saveFile(){var name=document.getElementById('edContent').dataset.fn;if(!name)return;fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(name),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:document.getElementById('edContent').value})}).then(function(r){if(!r||!r.ok){toast('Save failed','error');return;}closeModal('mEditor');loadFiles();toast(name+' saved','success');}).catch(function(){toast('Save failed','error');});}
 function openNewFileModal(){if(!curBot){toast('Select an instance first','error');return;}document.getElementById('mNewFile').classList.add('open');setTimeout(function(){var el=document.getElementById('nfName');if(el)el.focus();},80);}
-function createNewFile(){var name=document.getElementById('nfName').value.trim();if(!name){toast('Filename required','error');return;}fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(name),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:document.getElementById('nfContent').value})}).then(function(r){if(!r||!r.ok){toast('Create failed','error');return;}closeModal('mNewFile');document.getElementById('nfName').value='';document.getElementById('nfContent').value='';loadFiles();toast('File created','success');});}
-function delFile(name){if(!confirm('Delete "'+name+'"?'))return;fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(name),{method:'DELETE'}).then(function(r){if(!r||!r.ok){toast('Delete failed','error');return;}loadFiles();toast('File deleted','success');});}
+function createNewFile(){var name=document.getElementById('nfName').value.trim();if(!name){toast('Filename required','error');return;}fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(name),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:document.getElementById('nfContent').value})}).then(function(r){if(!r||!r.ok){toast('Create failed','error');return;}closeModal('mNewFile');document.getElementById('nfName').value='';document.getElementById('nfContent').value='';loadFiles();toast('File created','success');}).catch(function(){toast('Create failed','error');});}
+function delFile(name){if(!confirm('Delete "'+name+'"?'))return;fetch('/api/bot/'+curBot+'/file/'+encodeURIComponent(name),{method:'DELETE'}).then(function(r){if(!r||!r.ok){toast('Delete failed','error');return;}loadFiles();toast('File deleted','success');}).catch(function(){toast('Delete failed','error');});}
 function dlFile(name){window.location.href='/api/bot/'+curBot+'/file/'+encodeURIComponent(name)+'/download';}
 
 /* == DRAG & DROP ============================================================ */
@@ -1774,9 +1780,9 @@ document.addEventListener('keydown',function(e){
 });
 
 /* == ENV ==================================================================== */
-function loadEnv(){if(!curBot)return;fetch('/api/bot/'+curBot+'/env').then(function(r){if(!r)return;return r.json().then(function(env){var c=document.getElementById('envRows');if(!c)return;c.innerHTML='';var e=Object.entries(env);if(e.length)e.forEach(function(pair){addEnvRow(pair[0],pair[1])});else addEnvRow('','');});});}
+function loadEnv(){if(!curBot)return;fetch('/api/bot/'+curBot+'/env').then(function(r){if(!r)return;return r.json().then(function(env){var c=document.getElementById('envRows');if(!c)return;c.innerHTML='';var e=env?Object.entries(env):[];if(e.length)e.forEach(function(pair){addEnvRow(pair[0],pair[1])});else addEnvRow('','');});}).catch(function(){addEnvRow('','');});}
 function addEnvRow(k,v){if(k===undefined)k='';if(v===undefined)v='';var d=document.createElement('div');d.className='env-row';var ki=document.createElement('input');ki.className='env-field env-key';ki.placeholder='VARIABLE_NAME';ki.value=k;var vi=document.createElement('input');vi.className='env-field';vi.placeholder='value';vi.value=v;var db=document.createElement('button');db.className='icon-btn red';db.textContent='\u2715';db.style.cssText='width:28px;height:28px';db.onclick=function(){d.remove()};d.append(ki,vi,db);document.getElementById('envRows').appendChild(d);}
-function saveEnv(){if(!curBot)return;var env={};document.querySelectorAll('.env-row').forEach(function(r){var inputs=r.querySelectorAll('.env-field');var k=inputs[0]?inputs[0].value.trim():'',v=inputs[1]?inputs[1].value:'';if(k)env[k]=v||'';});fetch('/api/bot/'+curBot+'/env',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(env)}).then(function(r){if(!r||!r.ok){toast('Save failed','error');return;}toast('Environment saved','success');});}
+function saveEnv(){if(!curBot)return;var env={};document.querySelectorAll('.env-row').forEach(function(r){var inputs=r.querySelectorAll('.env-field');var k=inputs[0]?inputs[0].value.trim():'',v=inputs[1]?inputs[1].value:'';if(k)env[k]=v||'';});fetch('/api/bot/'+curBot+'/env',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(env)}).then(function(r){if(!r||!r.ok){toast('Save failed','error');return;}toast('Environment saved','success');}).catch(function(){toast('Save failed','error');});}
 
 /* == SETTINGS ================================================================ */
 function loadSettings(){
@@ -1797,7 +1803,7 @@ function loadSettings(){
     fetch('/api/bot/'+curBot+'/subusers').then(function(r){
       if(!r)return;return r.json().then(function(users){
         var c=document.getElementById('subuserList');if(!c)return;c.innerHTML='';
-        if(!users.length){c.innerHTML='<div style="font-size:11px;color:var(--text3);padding:6px 0">No shared users yet.</div>';return;}
+        if(!users||!users.length){c.innerHTML='<div style="font-size:11px;color:var(--text3);padding:6px 0">No shared users yet.</div>';return;}
         users.forEach(function(u){
           var div=document.createElement('div');div.className='subuser-row';
           var ns=document.createElement('span');ns.style.color='var(--text2)';ns.style.fontSize='12px';ns.textContent=u;
@@ -1805,12 +1811,12 @@ function loadSettings(){
           div.append(ns,db);c.appendChild(div);
         });
       });
-    });
+    }).catch(function(){});
   }
 }
-function saveSettings(){if(!curBot)return;var data={name:document.getElementById('stName').value.trim(),startup_file:document.getElementById('stStartup').value.trim()||'main.py',type:document.getElementById('stType').value,auto_restart:document.getElementById('stAR').value==='true'};fetch('/api/bot/'+curBot+'/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){if(!r||!r.ok){toast('Save failed','error');return;}return r.json().then(function(upd){botRegistry[curBot]=Object.assign({},botRegistry[curBot],upd);document.getElementById('topbarBotName').textContent=data.name||curBot;document.getElementById('manageBotTitle').textContent=data.name||curBot;document.getElementById('sfInput').value=data.startup_file;renderBotList();renderBotsGrid();toast('Configuration saved','success');});});}
-function addSubuser(){if(!curBot)return;var u=document.getElementById('newSubuser').value.trim();if(!u)return;fetch('/api/bot/'+curBot+'/subusers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u})}).then(function(r){if(r&&r.ok){document.getElementById('newSubuser').value='';loadSettings();toast('Access granted to '+u,'success');}else toast('User not found','error');});}
-function removeSubuser(u){if(!curBot)return;fetch('/api/bot/'+curBot+'/subusers/'+encodeURIComponent(u),{method:'DELETE'}).then(function(r){if(r&&r.ok){loadSettings();toast('Access revoked for '+u,'success');}});}
+function saveSettings(){if(!curBot)return;var data={name:document.getElementById('stName').value.trim(),startup_file:document.getElementById('stStartup').value.trim()||'main.py',type:document.getElementById('stType').value,auto_restart:document.getElementById('stAR').value==='true'};fetch('/api/bot/'+curBot+'/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){if(!r||!r.ok){toast('Save failed','error');return;}return r.json().then(function(upd){botRegistry[curBot]=Object.assign({},botRegistry[curBot],upd);document.getElementById('topbarBotName').textContent=data.name||curBot;document.getElementById('manageBotTitle').textContent=data.name||curBot;document.getElementById('sfInput').value=data.startup_file;renderBotList();renderBotsGrid();toast('Configuration saved','success');});}).catch(function(){toast('Save failed','error');});}
+function addSubuser(){if(!curBot)return;var u=document.getElementById('newSubuser').value.trim();if(!u)return;fetch('/api/bot/'+curBot+'/subusers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u})}).then(function(r){if(r&&r.ok){document.getElementById('newSubuser').value='';loadSettings();toast('Access granted to '+u,'success');}else toast('User not found','error');}).catch(function(){toast('Failed to grant access','error');});}
+function removeSubuser(u){if(!curBot)return;fetch('/api/bot/'+curBot+'/subusers/'+encodeURIComponent(u),{method:'DELETE'}).then(function(r){if(r&&r.ok){loadSettings();toast('Access revoked for '+u,'success');}}).catch(function(){});}
 
 /* == RESOURCES =============================================================== */
 function startRes(){stopRes();fetchRes();resIv=setInterval(fetchRes,4000);}
@@ -1840,8 +1846,14 @@ function toast(msg,type){
   setTimeout(function(){t.style.transition='all .3s';t.style.opacity='0';t.style.transform='translateX(10px)';setTimeout(function(){t.remove()},300);},3500);
 }
 
+/* == GLOBAL ERROR HANDLER =================================================== */
+window.addEventListener('unhandledrejection',function(e){console.error('Unhandled promise:',e.reason);e.preventDefault();});
+window.onerror=function(msg,src,line,col,err){console.error('JS Error:',msg,src,line);return true;};
+
 /* == BOOT ==================================================================== */
-checkAuth().then(function(ok){if(ok){loadBots();fetchRes();setInterval(fetchRes,5000);}});
+try{
+  checkAuth().then(function(ok){if(ok){loadBots();fetchRes();setInterval(fetchRes,5000);}}).catch(function(e){console.error('Boot error:',e);document.getElementById('loginOverlay').style.display='flex';});
+}catch(e){console.error('Boot exception:',e);document.getElementById('loginOverlay').style.display='flex';}
 </script>
 </body>
 </html>"""
@@ -2419,27 +2431,39 @@ def _update_cpu():
                 _cpu_cache['ts']  = time.time()
         except Exception:
             pass
-        time.sleep(3)
+        try:
+            time.sleep(3)
+        except Exception:
+            break
 
-threading.Thread(target=_update_cpu, daemon=True).start()
+try:
+    threading.Thread(target=_update_cpu, daemon=True).start()
+except Exception as e:
+    log.warning(f'CPU monitor thread failed to start: {e}')
 
 @app.route('/api/resources')
 def resources():
-    with _cpu_lock:
-        cpu = _cpu_cache['val']
-    mem  = psutil.virtual_memory()
-    disk = psutil.disk_usage('/')
-    def fmt(b):
-        return f"{b // 1024 // 1024}MB" if b < 1024 ** 3 else f"{b / 1024 ** 3:.1f}GB"
-    return jsonify({
-        'cpu':       round(cpu, 1),
-        'mem_used':  fmt(mem.used),
-        'mem_total': fmt(mem.total),
-        'mem_pct':   round(mem.percent, 1),
-        'disk_used': fmt(disk.used),
-        'disk_total':fmt(disk.total),
-        'disk_pct':  round(disk.percent, 1),
-    })
+    try:
+        with _cpu_lock:
+            cpu = _cpu_cache['val']
+        mem  = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        def fmt(b):
+            return f"{b // 1024 // 1024}MB" if b < 1024 ** 3 else f"{b / 1024 ** 3:.1f}GB"
+        return jsonify({
+            'cpu':       round(cpu, 1),
+            'mem_used':  fmt(mem.used),
+            'mem_total': fmt(mem.total),
+            'mem_pct':   round(mem.percent, 1),
+            'disk_used': fmt(disk.used),
+            'disk_total':fmt(disk.total),
+            'disk_pct':  round(disk.percent, 1),
+        })
+    except Exception:
+        return jsonify({
+            'cpu': 0, 'mem_used': '0MB', 'mem_total': '0MB',
+            'mem_pct': 0, 'disk_used': '0MB', 'disk_total': '0MB', 'disk_pct': 0
+        })
 
 
 # --- ENTRY POINT ---------------------------------------------------------------
